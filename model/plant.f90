@@ -31,7 +31,7 @@ Subroutine Harvest(CLV,CRES,CST,year,doy,DAYS_HARVEST,LAI,PHEN,TILG1,TILG2,TILV,
     if ( (year==DAYS_HARVEST(i,1)) .and. (doy==DAYS_HARVEST(i,2)) ) then
       HARV   = 1
       NOHARV = 0	
-	end if
+   end if
   end do
   FRACTV = (TILV+TILG1) / (TILV+TILG1+TILG2)
   CLAI   = FRACTV * CLAIV
@@ -130,8 +130,8 @@ Subroutine HardeningSink(CLV,DAYL,doy,LT50,Tsurf)
   RESPHARDSI = RATEH * CLV * KRESPHARD * max(0.,min(1., RESNOR*5. ))
 end Subroutine HardeningSink
 
-Subroutine Growth(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
-                  GLV,GRES,GRT,GST,RESMOB,NSHmob)
+Subroutine Growth_original(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
+     GLV,GRES,GRT,GST,RESMOB,NSHmob)
   real :: LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF
   real :: GLV,GRES,GRT,GST,RESMOB,NSHmob
   real :: ALLOTOT,CSTAV,GRESSI,SOURCE
@@ -159,16 +159,85 @@ Subroutine Growth(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
   NSHK     = (CLV+CST)*NCSHMAX * (1.-exp(-K*LAI))/(K*LAI)
   NSHEXCESS = max( 0., NSH-NSHK )
   NSHmob   = NOHARV * NSHEXCESS / TCNSHMOB
+
   NSOURCE  = NMIN/TCNUPT + NSHmob
+  
   NSINK    = max(0., (GLVSI+GSTSI)*NCSHMAX )
 !  NSINK    = (GLVSI+GSTSI)*NCSHMAX
   fNgrowth = min( 1., NSOURCE / NSINK )
   GLAISI   = GLAISI * fNgrowth
   GLVSI    = GLVSI  * fNgrowth
   GSTSI    = GSTSI  * fNgrowth
+ call Allocation(ALLOTOT,GRESSI, GRES,GRT,GLV,GST)
 
-  call Allocation(ALLOTOT,GRESSI, GRES,GRT,GLV,GST)
-end Subroutine Growth
+end Subroutine Growth_original
+
+Subroutine growth_demand(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
+     GLV,GRES,GRT,GST,RESMOB,NSHmob, ALLOTOT, GRESSI, plant_ndemand)
+  real :: LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF
+  real :: GLV,GRES,GRT,GST,RESMOB
+
+  real, intent(out) :: ALLOTOT, GRESSI, NSHmob, plant_ndemand
+  
+  real :: CSTAV,SOURCE
+  real :: NSHEXCESS
+
+  PHOT     = PARINT * TRANRF * 12. * LUEMXQ * NOHARV
+  RESMOB   = (CRES * NOHARV / TCRES) * max(0.,min( 1.,DAVTMP/5. ))
+  SOURCE   = RESMOB + PHOT
+  RESPHARD = min(SOURCE,RESPHARDSI)
+  ALLOTOT  = SOURCE - RESPHARD
+  GRESSI   = 0.5 * (RESMOB + max(0.,(CRESMX-CRES)/DELT))
+  if (TILG2 /= 0.0) then 
+    CSTAV  = CST/TILG2 
+  else 
+    CSTAV  = 0.
+  end if
+  SINK1T   = max(0., 1 - (CSTAV/CSTAVM)) * SIMAX1T
+  NELLVG   = PHENRF * NELLVM 
+  GLAISI   = ((LERV*(TILV+TILG1)*NELLVM*LFWIDV)  + &
+              (LERG*      TILG2 *NELLVG*LFWIDG)) * SHAPE * TRANRF
+  GLVSI    = max(0., (GLAISI * NOHARV / SLANEW) / YG )
+!  GLVSI    = (GLAISI * NOHARV / SLANEW) / YG
+  GSTSI    = max(0., (SINK1T * TILG2 * TRANRF * NOHARV) / YG )
+!  GSTSI    = (SINK1T * TILG2 * TRANRF * NOHARV) / YG
+  
+  NSHK     = (CLV+CST)*NCSHMAX * (1.-exp(-K*LAI))/(K*LAI)
+  NSHEXCESS = max( 0., NSH-NSHK )
+  NSHmob   = NOHARV * NSHEXCESS / TCNSHMOB
+
+  plant_ndemand = max(0., (GLVSI+GSTSI)*NCSHMAX - NSHmob)
+  
+!   NSOURCE  = NMIN/TCNUPT + NSHmob
+!   NSINK    = max(0., (GLVSI+GSTSI)*NCSHMAX )
+! !  NSINK    = (GLVSI+GSTSI)*NCSHMAX
+!   fNgrowth = min( 1., NSOURCE / NSINK )
+!   GLAISI   = GLAISI * fNgrowth
+!   GLVSI    = GLVSI  * fNgrowth
+!   GSTSI    = GSTSI  * fNgrowth
+!  call Allocation(ALLOTOT,GRESSI, GRES,GRT,GLV,GST)
+
+end Subroutine growth_demand
+
+subroutine growth_final(nalloc_plant, GRES, GRT, GLV, GST, ALLOTOT, GRESSI, NSHmob)
+  real, intent(in) :: nalloc_plant
+  real, intent(in) :: GRES
+  real, intent(in) :: GRT
+  real, intent(in) :: GLV
+  real, intent(in) :: GST
+  real, intent(in) :: ALLOTOT
+  real, intent(in) :: GRESSI
+  real, intent(in) :: NSHmob
+  
+  NSOURCE = nalloc_plant + NSHmob
+  NSINK    = max(0., (GLVSI+GSTSI)*NCSHMAX )
+  fNgrowth = min( 1., NSOURCE / NSINK )
+  GLAISI   = GLAISI * fNgrowth
+  GLVSI    = GLVSI  * fNgrowth
+  GSTSI    = GSTSI  * fNgrowth
+  call Allocation(ALLOTOT, GRESSI, GRES, GRT, GLV, GST)
+  
+end subroutine growth_final
 
    Subroutine Allocation(ALLOTOT,GRESSI, GRES,GRT,GLV,GST)
      real :: ALLOTOT, GRESSI
@@ -190,7 +259,7 @@ end Subroutine Growth
      end if
      ! All surplus carbohydrate goes to roots
      ALLORT  = ALLOTOT - ALLOSH - GRES
-       if (GSHSI == 0.) GSHSI = 1
+     if (GSHSI == 0.) GSHSI = 1
      ALLOLV  = GLVSI * (ALLOSH / GSHSI)
      ALLOST  = GSTSI * (ALLOSH / GSHSI)
      GLV     = ALLOLV * YG
@@ -317,42 +386,42 @@ Subroutine Nplant(NSHmob,CLV,CRT,CST,DLAI,DLV,DRT,GLAI,GLV,GRT,GST,HARVLA,HARVLV
   if (GLAI > 0) then
     if (KN > 0) then
       GNSH = fNCgrowth * NCSHMAX * (GLV+GST) * (1-exp(-KN*GLAI)) / (KN*GLAI)
-	else
-	  GNSH = fNCgrowth * NCSHMAX * (GLV+GST)
+    else
+      GNSH = fNCgrowth * NCSHMAX * (GLV+GST)
     end if      
-	NCGSH = GNSH / (GLV+GST)
+    NCGSH = GNSH / (GLV+GST)
   else
     GNSH  = 0
-	NCGSH = 0
+    NCGSH = 0
   end if
   if (DLAI > 0) then
     if (KN > 0) then
       DNSH = NSH * (CLV/(CLV+CST)) * (1 - (1-exp(-KN*(LAI-DLAI))) / (1-exp(-KN*LAI)) )
-	else
-	  DNSH = NSH * (CLV/(CLV+CST)) * DLAI/LAI
-    end if      
-	DNSH  = max( DNSH, NSH-NCSHMAX*((CLV+CST)-DLV) )
-	NCDSH = DNSH / DLV
+    else
+      DNSH = NSH * (CLV/(CLV+CST)) * DLAI/LAI
+    end if
+    DNSH  = max( DNSH, NSH-NCSHMAX*((CLV+CST)-DLV) )
+    NCDSH = DNSH / DLV
   else
-	DNSH  = 0
-	NCDSH = 0
+    DNSH  = 0
+    NCDSH = 0
   end if
   if (HARVLA > 0) then
     if (KN > 0) then
       HARVNSH = NSH * (1-exp(-KN*HARVLA)) / (1-exp(-KN*LAI))
-	else
-	  HARVNSH = NSH * HARVLA/LAI
-    end if      
-	HARVNSH  = max( HARVNSH, NSH-NCSHMAX*((CLV+CST)-(HARVLV+HARVST)) )
-	NCHARVSH = HARVNSH / (HARVLV+HARVST)
+    else
+      HARVNSH = NSH * HARVLA/LAI
+    end if
+    HARVNSH  = max( HARVNSH, NSH-NCSHMAX*((CLV+CST)-(HARVLV+HARVST)) )
+    NCHARVSH = HARVNSH / (HARVLV+HARVST)
   else
     HARVNSH  = 0  
-	NCHARVSH = 0
+    NCHARVSH = 0
   end if
-!  GNRT = NCR * GRT
+  !  GNRT = NCR * GRT
   GNRT = NCR * GRT * fNgrowth
-!  GNRT = NCR * GRT * NSHNOR
-!  DNRT = NCR * DRT
+  !  GNRT = NCR * GRT * NSHNOR
+  !  DNRT = NCR * DRT
   DNRT = DRT * NRT/CRT
   GNmob      = min( NSHmob, GNSH+GNRT )
   NSHmobsoil = NSHmob - GNmob

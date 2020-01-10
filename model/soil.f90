@@ -162,6 +162,7 @@ Subroutine CNsoil(ROOTD,RWA,WFPS,WAL,GCR,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOM
   dNLITT      =  (NLITT*dCLITT) / CLITT
   NLITTsomf   = dNLITT * FLITTSOMF
   NLITTnmin   = dNLITT - NLITTsomf
+  !print *, 'ratio litt somf', dCLITTsomf/NLITTsomf
   ! N SOM fast
   rNSOMF      = ((NSOMF*RUNOFF) / ROOTD) * RRUNBULK * 0.001
   dNSOMF      =  (NSOMF*dCSOMF) / CSOMF
@@ -169,6 +170,9 @@ Subroutine CNsoil(ROOTD,RWA,WFPS,WAL,GCR,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOM
   NSOMFnmin   = dNSOMF - NSOMFsoms
   ! N SOM slow
   dNSOMS      = (NSOMS*dCSOMS) / CSOMS
+
+  !print *, 'ratio somf soms', dCSOMFsoms / NSOMFsoms
+
   ! N mineralisation, fixation, leaching, emission
   Nmineralisation = NLITTnmin + NSOMFnmin + dNSOMS
   Nfixation       = gCR * KNFIX
@@ -177,11 +181,13 @@ Subroutine CNsoil(ROOTD,RWA,WFPS,WAL,GCR,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOM
     Nleaching       = (NMIN*RNLEACH*DRAIN) / WAL
   else
     Nleaching       = 0.
-  end if
-  Nemission       =  NMIN * KNEMIT * RWA
+ end if
+  Nemission       = NMIN * KNEMIT * RWA
   fN2O            = 1. / (1. + exp(-RFN2O*(WFPS-WFPS50N2O)))
   NemissionN2O    = Nemission *     fN2O
-  NemissionNO     = Nemission * (1.-fN2O) 
+  NemissionNO     = Nemission * (1.-fN2O)
+
+
 end Subroutine CNsoil
   
 end module soil
