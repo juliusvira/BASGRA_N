@@ -11,11 +11,13 @@ days_harvest      <- matrix( as.integer(-1), nrow=100, ncol=2 )
 ### 1. MODEL LIBRARY FILE & FUNCTION FOR RUNNING THE MODEL
 run_model <- function(p = params,
                       w = matrix_weather,
-				      calf = calendar_fert,
-					  calN = calendar_Ndep,                      
+                      calf = calendar_fert,
+		      calN = calendar_Ndep,                      
                       h = days_harvest,
-                      n = NDAYS) {
-  .Fortran('BASGRA', p,w,calf,calN,h,n, NOUT,matrix(0,n,NOUT))[[8]]
+                      n = NDAYS,
+                      nyr = NYEARS,
+		      soilcn_option = 1) {
+  .Fortran('BASGRA', p, w, calf, calN, h, n, nyr, as.integer(soilcn_option), NOUT, matrix(0,n*nyr,NOUT))[[10]]
 }
 
 ################################################################################
@@ -94,7 +96,7 @@ outputNames <- c(
   "NSOURCE"    , "NSINK"            ,                                    # 94:95
   "NRT"        , "NCRT"             ,                                    # 96:97
   "rNLITT"     , "rNSOMF"           ,                                    # 98:99
-  "DAYL"                                                                 # 100
+  "DAYL"       , "NPP"                                                   # 100:101
 )
   
 outputUnits <- c(
@@ -122,7 +124,7 @@ outputUnits <- c(
   "(g N m-2 d-1)", "(g N m-2 d-1)",                                                # 94:95
   "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 96:97
   "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 98:99
-  "(d d-1)"                                                                        # 100
+  "(d d-1)"      , "(g C m-2 d-1)"                                                 # 100:101
 )
   
 NOUT <- as.integer( length(outputNames) )
@@ -165,6 +167,42 @@ plot_output <- function(
   }
 }
 
+plot_output_multiyear<- function(
+  list_output = list(output),
+  vars        = outputNames[-(1:3)],
+  leg         = paste( "Run", 1:length(list_output) ),
+  leg_title   = "LEGEND",
+  nrow_plot   = ceiling( sqrt((length(vars)+1) * 8/11) ),
+  ncol_plot   = ceiling( (length(vars)+1)/nrow_plot ),
+  lty         = rep(1,length(list_output)),
+  lwd         = rep(3,length(list_output))
+) {
+  par( mfrow=c(nrow_plot,ncol_plot), mar=c(2, 2, 2, 1) )
+  if (!is.list(list_output)) list_output <- list(list_output) ; nlist <- length(list_output)
+  col_vars <- match(vars,outputNames)                         ; nvars <- length(vars)
+  for (iv in 1:nvars) {
+    c       <- col_vars[iv]
+    # g_range <- range( sapply( 1:nlist, function(il){range(list_output[[il]][,c])} ) )
+    g_range <- range( sapply( 1:nlist, function(il) {
+        range( list_output[[il]][,c], na.rm=TRUE ) } ) )
+    absc <- 1:length(list_output[[1]][,c]) / 365.0
+    plot( absc, list_output[[1]][,c],
+          xlab="", ylab="", cex.main=1,
+          main=paste(outputNames[c]," ",outputUnits[c],sep=""),
+          type='l', col=1, lty=lty[1], lwd=lwd[1], ylim=g_range )
+    if (nlist >= 2) {
+      for (il in 2:nlist) {
+      points( list_output[[il]][,1], list_output[[il]][,c],
+              col=il, type='l', lty=lty[il], lwd=lwd[il] )            
+      }
+    }
+    if ( (iv%%(nrow_plot*ncol_plot-1)==0) || (iv==nvars) ) {
+      plot(1,type='n', axes=FALSE, xlab="", ylab="")
+      legend("bottomright", leg, lty=lty, lwd=lwd, col=1:nlist, title = leg_title)
+    }
+  }
+}
+
 table_output <- function(
   list_output = list(output),
   vars        = outputNames[-(1:3)],
@@ -179,8 +217,8 @@ table_output <- function(
                                   rbind(vars, list_output[[il]][,col_vars])
     table_output <- cbind( table_output, table_il ) 
   }
-  colnames(table_output) <- c( "","","",rep(leg,each=nvars) )
-  write.table( table_output, file_table, sep="\t", row.names=F )
+  #colnames(table_output) <- c( "","","",rep(leg,each=nvars) )
+  write.table( table_output, file_table, sep=",", row.names=F)
 }
 
 export_output <- function(
