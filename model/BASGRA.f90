@@ -26,8 +26,7 @@ use set_params_mod
 
 implicit none
 
-!#integer, parameter :: nyears = 100
-integer, dimension(100,2) :: DAYS_HARVEST
+integer, dimension(max_harv_days, 3) :: DAYS_HARVEST ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
 real                      :: PARAMS(120)
 #ifdef weathergen  
   integer, parameter      :: NWEATHER =  7
@@ -35,9 +34,10 @@ real                      :: PARAMS(120)
   integer, parameter      :: NWEATHER =  8
 #endif
 real                      :: MATRIX_WEATHER(SIZE_WEATHER,NWEATHER)
-real   , dimension(100,3) :: CALENDAR_FERT, CALENDAR_NDEP
+real   , dimension(100,5) :: CALENDAR_FERT ! (ind_fert, year - 0 means any; doy; amount in gN/m2; type (1.0=mineral, 2.0=soluble organic); C:N ratio)
+real   , dimension(100,3) :: CALENDAR_NDEP 
 integer, dimension(100,2) :: DAYS_FERT    , DAYS_NDEP
-real   , dimension(100)   :: NFERTV       , NDEPV
+real   , dimension(100)   :: NDEPV
 
 integer                   :: day, doy, i, NDAYS, NOUT, year, nyears, size_weather
 integer                   :: soilcn_option
@@ -70,15 +70,17 @@ real :: O2OUT, PackMelt, poolDrain, poolInfil, Psnow, reFreeze, RESMOB
 real :: RGRTVG1, RROOTD, SnowMelt, THAWPS, THAWS, TILVG1, TILG1G2, TRAN, Wremain
 real :: NCSHI, NCGSH, NCDSH, NCHARVSH, GNSH, DNSH, HARVNSH, GNRT, DNRT
 real :: NSHmob, NSHmobsoil, Nupt
+real :: harv_c_to_litt, harv_n_to_litt
 ! yasso
 real :: norg_runoff, soilc_runoff(num_c_pools)
 
-real :: Ndep, Nfert
+real :: Ndep, Nfert_min, Nfert_org, Cfert, fertflag
 
 real :: F_DIGEST_DM, F_DIGEST_DMSH, F_DIGEST_LV, F_DIGEST_ST, F_DIGEST_WALL
 real :: F_WALL_DM  , F_WALL_DMSH  , F_WALL_LV  , F_WALL_ST
 real :: GRESSI, ALLOTOT
 integer :: cycyear, total_day
+logical :: if_cut_only
 
 ! yasso state variables
 real :: yasso_clim(num_clim_par)
@@ -127,7 +129,6 @@ TMMXI  = MATRIX_WEATHER(:,5)
 ! Calendars
 DAYS_FERT  = CALENDAR_FERT (:,1:2)
 DAYS_NDEP  = CALENDAR_NDEP (:,1:2)
-NFERTV     = CALENDAR_FERT (:,3) * NFERTMULT
 NDEPV      = CALENDAR_NDEP (:,3)
 
 ! Initial constants for plant state variables
@@ -226,7 +227,7 @@ do cycyear = 1, nyears
       call O2status       (O2,ROOTD)
       ! Plant
       call Harvest        (CLV,CRES,CST,year,doy,DAYS_HARVEST,LAI,PHEN,TILG1,TILG2,TILV, &
-           GSTUB,HARVLA,HARVLV,HARVPH,HARVRE,HARVST,HARVTILG2)
+           GSTUB,HARVLA,HARVLV,HARVPH,HARVRE,HARVST,HARVTILG2,if_cut_only)
       call Biomass        (CLV,CRES,CST)
       call Phenology      (DAYL,PHEN,                      DPHEN,GPHEN)
       call Foliage1
@@ -260,7 +261,7 @@ do cycyear = 1, nyears
            GLAI,GTILV,TILVG1,TILG1G2)
       ! Soil 2
       call O2fluxes       (O2,PERMgas,ROOTD,RplantAer,     O2IN,O2OUT)
-      call N_fert         (year,doy,DAYS_FERT,NFERTV,      Nfert)
+      call N_fert         (year, doy, CALENDAR_FERT, Nfert_min, Nfert_org, Cfert, fertflag)
       call N_dep          (year,doy,DAYS_NDEP,NDEPV,       Ndep)
 
       if (soilcn_model == 'basgra') then
@@ -357,7 +358,7 @@ do cycyear = 1, nyears
       y(total_day,47) = Rsoil           ! g C m-2 d-1
       y(total_day,48) = NemissionN2O    ! g N m-2 d-1
       y(total_day,49) = NemissionNO     ! g N m-2 d-1
-      y(total_day,50) = Nfert           ! g N m-2 d-1
+      y(total_day,50) = Nfert_min       ! g N m-2 d-1
       y(total_day,51) = Ndep            ! g N m-2 d-1
       y(total_day,52) = RWA             ! -
       y(total_day,53) = NSH             ! g N m-2
@@ -447,43 +448,53 @@ do cycyear = 1, nyears
       if((LAT>0).AND.(doy==305)) VERN = 0  
       if((LAT<0).AND.(doy==122)) VERN = 0  
       if(DAVTMP<TVERN)           VERN = 1
-      YIELD     = (HARVLV + HARVST*HAGERE)/0.45 + HARVRE/0.40
-      if(YIELD>0) YIELD_LAST = YIELD
-      YIELD_TOT = YIELD_TOT + YIELD
 
+      ! Yield computed only if harvest is removed
+      if (.not. if_cut_only) then
+         ! why HAGERE here?
+         YIELD     = (HARVLV + HARVST*HAGERE)/0.45 + HARVRE/0.40
+         if(YIELD>0) YIELD_LAST = YIELD
+         YIELD_TOT = YIELD_TOT + YIELD
+         harv_c_to_litt = 0.0
+         harv_n_to_litt = 0.0
+      else
+         YIELD = 0.0
+         harv_c_to_litt = HARVLV + HARVST*HAGERE + HARVRE
+         harv_n_to_litt = HARVNSH 
+      end if
+         
       NRT       = NRT   + GNRT - DNRT
       NSH       = NSH   + GNSH - DNSH - HARVNSH - NSHmob
 
-      Nfert_TOT = Nfert_TOT + Nfert
+      Nfert_TOT = Nfert_TOT + Nfert_min + Nfert_org
       DM_MAX    = max( DM, DM_MAX )
-
 
       ! State equations soil
 
       ! Default BASGRA C & N
       if (soilcn_model == 'basgra') then
-         CLITT   = CLITT + DLV + DSTUB              - rCLITT - dCLITT
+         CLITT   = CLITT + DLV + DSTUB + harv_c_to_litt + Cfert - rCLITT - dCLITT
          CSOMF   = CSOMF + DRT         + dCLITTsomf - rCSOMF - dCSOMF
          CSOMS   = CSOMS               + dCSOMFsoms          - dCSOMS
-         NLITT   = NLITT + DNSH             - rNLITT - dNLITT
+         NLITT   = NLITT + DNSH        + harv_n_to_litt + Nfert_org      - rNLITT - dNLITT
          NSOMF   = NSOMF + DNRT + NLITTsomf - rNSOMF - dNSOMF 
          NSOMS   = NSOMS        + NSOMFsoms          - dNSOMS
       else if (soilcn_model == 'yasso') then
          call cn_state_update(yasso_inst, &
-              get_littc_awenh(DLV+DSTUB, DRT) - soilc_runoff, &
-              DNSH + DNRT-norg_runoff)
+              get_littc_awenh(DLV+DSTUB+harv_c_to_litt, DRT) + get_fertc_awenh(fertflag, Cfert) - soilc_runoff, &
+              DNSH + DNRT + harv_n_to_litt + nfert_org - norg_runoff)
          !call cn_state_update(yasso_inst, &
          !     get_littc_awenh(0.0, DRT) - soilc_runoff, &
          !     DNRT-norg_runoff)
 
          nMineralisation = get_netmin_act(yasso_inst)
-         cumlittc = cumlittc + sum(get_littc_awenh(DLV+DSTUB, DRT))
+         cumlittc = cumlittc + sum(get_littc_awenh(DLV+DSTUB+harv_c_to_litt, DRT))
          cumsoilr = cumsoilr + get_soilresp(yasso_inst)
          cumphot = cumphot + phot
       end if
 
       ! Mineral N the same in basgra and yasso
-      NMIN = NMIN  + Ndep + Nfert + Nmineralisation + Nfixation + NSHmobsoil &
+      NMIN = NMIN  + Ndep + Nfert_min + Nmineralisation + Nfixation + NSHmobsoil &
            - Nupt - Nleaching - Nemission
       if (NMIN < 0) then
          nmin_trunc = nmin_trunc - NMIN

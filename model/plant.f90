@@ -14,23 +14,28 @@ real :: NSHK
 real :: GLAISI, SINK1T
 real :: NSOURCE, NSINK
 
+integer, parameter :: max_harv_days = 100
+
 Contains
 
-Subroutine Harvest(CLV,CRES,CST,year,doy,DAYS_HARVEST,LAI,PHEN,TILG1,TILG2,TILV, &
-                             GSTUB,HARVLA,HARVLV,HARVPH,HARVRE,HARVST,HARVTILG2)
+Subroutine Harvest(CLV, CRES, CST, year, doy, DAYS_HARVEST, LAI, PHEN, TILG1, TILG2, TILV, &
+     GSTUB, HARVLA, HARVLV, HARVPH, HARVRE, HARVST, HARVTILG2, if_cut_only)
   integer :: doy,year
-  integer,dimension(100,2) :: DAYS_HARVEST
+  integer,dimension(max_harv_days,3) :: DAYS_HARVEST
   real    :: CLV, CRES, CST, LAI, PHEN, TILG1, TILG2, TILV
   real    :: GSTUB, HARVLV, HARVLA, HARVRE, HARVTILG2, HARVST, HARVPH
+  logical, intent(out) :: if_cut_only
   real    :: CLAI, HARVFR, TV1
   integer :: HARV,i
  
   HARV   = 0
   NOHARV = 1
-  do i=1,100    
+  do i = 1, max_harv_days
     if ( (year==DAYS_HARVEST(i,1) .or. DAYS_HARVEST(i,1) == 0) .and. (doy==DAYS_HARVEST(i,2)) ) then
       HARV   = 1
-      NOHARV = 0	
+      NOHARV = 0
+      if_cut_only = DAYS_HARVEST(i,3) > 0
+      exit
    end if
   end do
   FRACTV = (TILV+TILG1) / (TILV+TILG1+TILG2)

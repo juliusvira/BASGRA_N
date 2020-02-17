@@ -107,17 +107,38 @@ Subroutine O2fluxes(O2,PERMgas,ROOTD,RplantAer, O2IN,O2OUT)
   O2IN  = PERMgas * ( (O2MX-O2) + O2OUT*DELT )  
 end Subroutine O2fluxes
 
-Subroutine N_fert(year,doy,DAYS_FERT,NFERTV, Nfert)
-  integer                  :: year,doy,i
-  integer,dimension(100,2) :: DAYS_FERT
-  real   ,dimension(100  ) :: NFERTV
-  real                     :: Nfert
-  Nfert   = 0
+Subroutine N_fert(year, doy, CALENDAR_FERT, Nfert_min, Nfert_org, Cfert, fertflag)
+  integer, intent(in) :: year,doy
+  real, intent(in) :: CALENDAR_FERT(:,:)
+  
+  real, intent(out) :: Nfert_min, Nfert_org, Cfert, fertflag
+
+  integer :: i
+  real :: nfert_tot
+  
   do i=1,100    
-    if ( (year==DAYS_FERT (i,1) .or. DAYS_FERT(i,1) == 0) .and. (doy==DAYS_FERT (i,2)) ) then
-      Nfert   = NFERTV (i)
-   end if
+     if (       (year==CALENDAR_FERT(i,1) .or. CALENDAR_FERT(i,1) == 0) &
+          .and. doy==CALENDAR_FERT(i,2) ) then
+        nfert_tot = CALENDAR_FERT(i,3) * NFERTMULT
+        fertflag = CALENDAR_FERT(i,4)
+        if (fertflag > 0) then
+           Cfert = nfert_org * CALENDAR_FERT(i,5)
+           nfert_org = nfert_tot
+           nfert_min = 0.0
+        else
+           Cfert = 0.0
+           nfert_org = 0.0
+           nfert_min = nfert_tot
+        end if
+        return
+     end if
   end do
+
+  Nfert_min = 0.0
+  Nfert_org = 0.0
+  Cfert = 0.0
+  fertflag = 0.0
+  
 end Subroutine N_fert
 
 Subroutine N_dep(year,doy,DAYS_NDEP,NDEPV, Ndep)

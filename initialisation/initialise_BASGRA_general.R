@@ -17,7 +17,7 @@ run_model <- function(p = params,
                       n = NDAYS,
                       nyr = NYEARS,
 		      soilcn_option = 1) {
-  .Fortran('BASGRA', p, w, calf, calN, h, n, nyr, as.integer(soilcn_option), NOUT, matrix(0,n*nyr,NOUT))[[10]]
+  .Fortran('BASGRA', p, w, calf, calN, h, n, nyr, nrow(matrix_weather), as.integer(soilcn_option), NOUT, matrix(0,n*nyr,NOUT))[[11]]
 }
 
 ################################################################################
@@ -31,7 +31,7 @@ read_weather_Bioforsk <- function(y = year_start,
   while( df_weather[row_start,]$YR  < y ) { row_start <- row_start+1 }
   while( df_weather[row_start,]$doy < d ) { row_start <- row_start+1 }
   df_weather_sim        <- df_weather[row_start:(row_start+n-1),]
-  NMAXDAYS              <- as.integer(10000)
+  NMAXDAYS              <- nrow(df_weather_sim)
   NWEATHER              <- as.integer(8)
   matrix_weather        <- matrix( 0., nrow=NMAXDAYS, ncol=NWEATHER )
   matrix_weather[1:n,1] <- df_weather_sim$YR
@@ -96,7 +96,9 @@ outputNames <- c(
   "NSOURCE"    , "NSINK"            ,                                    # 94:95
   "NRT"        , "NCRT"             ,                                    # 96:97
   "rNLITT"     , "rNSOMF"           ,                                    # 98:99
-  "DAYL"       , "NPP"                                                   # 100:101
+  "DAYL"       , "GTOT"             , "DNRT"        , "NORG_RUNOFF",     # 100:103
+  "GRT"        , "NPP"              , "NEE"         , "RESMOB",          # 104:107
+  "FLITTC_LEAF", "FLITTC_ROOT"      , "FLITTN_LEAF" , "FLITTN_ROOT"      # 108:111
 )
   
 outputUnits <- c(
@@ -124,7 +126,9 @@ outputUnits <- c(
   "(g N m-2 d-1)", "(g N m-2 d-1)",                                                # 94:95
   "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 96:97
   "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 98:99
-  "(d d-1)"      , "(g C m-2 d-1)"                                                 # 100:101
+  "(d d-1)"      , "(g C m-2 d-1)", "(g N m-2 d-1)" , "(g N m-2 d-1)",             # 100:103
+  "(g C m-2 d-1)", "(g C m-2 d-1)", "(g C m-2 d-1)" , "(g C m-2 d-1)",             # 104:107
+  "(g C m-2 d-1)", "(g C m-2 d-1)", "(g N m-2 d-1)" , "(g N m-2 d-1)"              # 108:111
 )
   
 NOUT <- as.integer( length(outputNames) )
@@ -217,8 +221,14 @@ table_output <- function(
                                   rbind(vars, list_output[[il]][,col_vars])
     table_output <- cbind( table_output, table_il ) 
   }
-  #colnames(table_output) <- c( "","","",rep(leg,each=nvars) )
-  write.table( table_output, file_table, sep=",", row.names=F)
+                                        #colnames(table_output) <- c( "","","",rep(leg,each=nvars) )
+  #gz1 <- gzfile("df1.gz", "w")
+  #write.csv(df1, gz1)
+  #close(gz1)
+  file_gz <- gzfile(file_table, 'w')
+  write.table(table_output, file_gz, sep=",", row.names=F)
+  close(file_gz)
+  ##write.table( table_output, file_table, sep=",", row.names=F)
 }
 
 export_output <- function(
