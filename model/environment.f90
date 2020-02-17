@@ -5,8 +5,12 @@ use parameters_plant
 implicit none
 integer, parameter :: NMAXDAYS = 10000
 real :: GR, TMMN, TMMX, VP, WN
-real :: YEARI(NMAXDAYS), DOYI(NMAXDAYS) , RAINI(NMAXDAYS), GRI(NMAXDAYS)
-real :: TMMNI(NMAXDAYS), TMMXI(NMAXDAYS), VPI(NMAXDAYS)  , WNI(NMAXDAYS)
+
+
+!real :: YEARI(NMAXDAYS), DOYI(NMAXDAYS) , RAINI(NMAXDAYS), GRI(NMAXDAYS)
+!real :: TMMNI(NMAXDAYS), TMMXI(NMAXDAYS), VPI(NMAXDAYS)  , WNI(NMAXDAYS)
+
+real, dimension(:), allocatable :: YEARI, DOYI, RAINI, GRI, TMMNI, TMMXI, VPI, WNI, PETI
 
 #ifdef weathergen
 real :: PETI(NMAXDAYS)
@@ -21,10 +25,31 @@ real :: PET
 
 Contains
 
+
+  subroutine alloc_environment(ndays)
+    integer, intent(in) :: ndays
+
+    allocate(YEARI(ndays), DOYI(ndays), RAINI(ndays), GRI(ndays), TMMNI(ndays), TMMXI(ndays), VPI(ndays), WNI(ndays))
+#ifdef weathergen
+    allocate(PETI(ndays))
+#endif
+
+  end subroutine alloc_environment
+
+  subroutine dealloc_environment()
+    deallocate(YEARI, DOYI, RAINI, GRI, TMMNI, TMMXI, VPI, WNI)
+    if (allocated(PETI)) deallocate(PETI)
+  end subroutine dealloc_environment
+  
+  
 #ifdef weathergen
   Subroutine set_weather_day(day,DRYSTOR, year,doy)
     integer :: day, doy, year
-    real    :: DRYSTOR 
+    real    :: DRYSTOR
+    if (day > size(yeari)) then
+       print *, 'Day:', day, 'max:', size(yeari)
+       stop
+    end if
     year   = YEARI(day) ! day of the year (d)
     doy    = DOYI(day)  ! day of the year (d)
     RAIN   = RAINI(day) ! precipitation (mm d-1)	
@@ -39,7 +64,12 @@ Contains
 #else
   Subroutine set_weather_day(day,DRYSTOR, year,doy)
     integer :: day, doy, year
-    real    :: DRYSTOR 
+    real    :: DRYSTOR
+    if (day > size(yeari)) then
+       print *, 'Day:', day, 'max:', size(yeari)
+       stop
+    end if
+
     year   = YEARI(day) ! day of the year (d)
     doy    = DOYI(day)  ! day of the year (d)
     RAIN   = RAINI(day) ! precipitation (mm d-1)	
@@ -51,6 +81,8 @@ Contains
     DAVTMP = (TMMN + TMMX)/2.0
     DTR    = GR * exp(-KSNOW*DRYSTOR)
     PAR    = 0.5*4.56*DTR
+
+    print *, 'day year doy', day, year, doy
   end Subroutine set_weather_day
 #endif
 

@@ -114,9 +114,9 @@ Subroutine N_fert(year,doy,DAYS_FERT,NFERTV, Nfert)
   real                     :: Nfert
   Nfert   = 0
   do i=1,100    
-    if ( (year==DAYS_FERT (i,1)) .and. (doy==DAYS_FERT (i,2)) ) then
+    if ( (year==DAYS_FERT (i,1) .or. DAYS_FERT(i,1) == 0) .and. (doy==DAYS_FERT (i,2)) ) then
       Nfert   = NFERTV (i)
-	end if
+   end if
   end do
 end Subroutine N_fert
 
@@ -162,7 +162,6 @@ Subroutine CNsoil(ROOTD,RWA,WFPS,WAL,GCR,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOM
   dNLITT      =  (NLITT*dCLITT) / CLITT
   NLITTsomf   = dNLITT * FLITTSOMF
   NLITTnmin   = dNLITT - NLITTsomf
-  !print *, 'ratio litt somf', dCLITTsomf/NLITTsomf
   ! N SOM fast
   rNSOMF      = ((NSOMF*RUNOFF) / ROOTD) * RRUNBULK * 0.001
   dNSOMF      =  (NSOMF*dCSOMF) / CSOMF
@@ -170,8 +169,6 @@ Subroutine CNsoil(ROOTD,RWA,WFPS,WAL,GCR,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOM
   NSOMFnmin   = dNSOMF - NSOMFsoms
   ! N SOM slow
   dNSOMS      = (NSOMS*dCSOMS) / CSOMS
-
-  !print *, 'ratio somf soms', dCSOMFsoms / NSOMFsoms
 
   ! N mineralisation, fixation, leaching, emission
   Nmineralisation = NLITTnmin + NSOMFnmin + dNSOMS

@@ -28,7 +28,7 @@ Subroutine Harvest(CLV,CRES,CST,year,doy,DAYS_HARVEST,LAI,PHEN,TILG1,TILG2,TILV,
   HARV   = 0
   NOHARV = 1
   do i=1,100    
-    if ( (year==DAYS_HARVEST(i,1)) .and. (doy==DAYS_HARVEST(i,2)) ) then
+    if ( (year==DAYS_HARVEST(i,1) .or. DAYS_HARVEST(i,1) == 0) .and. (doy==DAYS_HARVEST(i,2)) ) then
       HARV   = 1
       NOHARV = 0	
    end if
@@ -39,10 +39,13 @@ Subroutine Harvest(CLV,CRES,CST,year,doy,DAYS_HARVEST,LAI,PHEN,TILG1,TILG2,TILV,
     HARVFR = 0.0
   else
     HARVFR = 1.0 - CLAI/LAI
-  end if
+ end if
+ print *, 'harvfr', harvfr, clai, lai, fractv
   HARVLA    = (HARV   * LAI * HARVFR) / DELT
   HARVLV    = (HARV   * CLV * HARVFR) / DELT
   HARVPH    = (HARV   * PHEN        ) / DELT
+  ! HAGERE = "Fraction of reserves in elongating tillers that is harvested"
+  ! TV1 = "Fraction of reserves removed at harvest" (probably)
   TV1       = (HARVFR * FRACTV) + (1-FRACTV)*HAGERE
   HARVRE    = (HARV   * TV1 * CRES  ) / DELT
   HARVST    = (HARV   * CST         ) / DELT
@@ -183,7 +186,10 @@ Subroutine growth_demand(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANR
   real :: NSHEXCESS
 
   PHOT     = PARINT * TRANRF * 12. * LUEMXQ * NOHARV
+
   RESMOB   = (CRES * NOHARV / TCRES) * max(0.,min( 1.,DAVTMP/5. ))
+  print *, 'in phot', PARINT, TRANRF, LUEMXQ, NOHARV, 'res', RESMOB, CRES
+
   SOURCE   = RESMOB + PHOT
   RESPHARD = min(SOURCE,RESPHARDSI)
   ALLOTOT  = SOURCE - RESPHARD
@@ -293,6 +299,7 @@ Subroutine Senescence(CLV,CRT,CSTUB,LAI,LT50,PERMgas,TANAER,TILV,Tsurf, &
   RDRT   = max(RDRTMIN, RDRTEM * Tsurf)
   TV2    = NOHARV * max(RDRS,RDRT,RDRFROST,RDRTOX)
   TV2TIL = NOHARV * max(RDRS,     RDRFROST,RDRTOX)
+  print *, 'tv2til', tv2til, RDRS, RDRFROST,RDRTOX
   DLAI   = LAI    * TV2
   DLV    = CLV    * TV2
   DSTUB  = CSTUB  * RDRSTUB
@@ -314,7 +321,8 @@ end Subroutine Senescence
        RDRTOX = KRDRANAER / (1.+exp(-KRDRANAER*(TANAER-LD50)))
      else
        RDRTOX = 0.
-     end if
+    end if
+    !rdrtox = 0
      end Subroutine AnaerobicDamage
 
    Subroutine Hardening(CLV,LT50,Tsurf, DeHardRate,HardRate)
@@ -343,17 +351,24 @@ Subroutine Foliage2(DAYL,GLV,LAI,TILV,TILG1,TRANRF,Tsurf,VERN, GLAI,GTILV,TILVG1
   real    :: RGRTVG1,TGE,TV1
   GLAI    = SLANEW * GLV
   if (Tsurf < TBASE) then 
-    TV1   = 0. 
+     TV1   = 0. 
   else 
-    TV1   = Tsurf/PHY
+     TV1   = Tsurf/PHY
   end if
+  ! RLEAF = leaf appearance rate, TRANRF = "transpiration realisation factor"
   RLEAF   = TV1 * NOHARV * TRANRF * DAYLGE * ( FRACTV + PHENRF*(1-FRACTV) ) * fNgrowth
+  
   FSPOT = LAITIL - LAIEFT*LAI
-    if (FSPOT > FSMAX) FSPOT = FSMAX
-    if (FSPOT < 0.)    FSPOT = 0.
+  ! FSMAX = "Maximum ratio of tiller and leaf appearance based on sward geometry"
+  if (FSPOT > FSMAX) FSPOT = FSMAX
+  if (FSPOT < 0.)    FSPOT = 0.
+  ! RGRTV = Relative rate of tillering
   RGRTV   = max( 0., FSPOT * RESNOR * RLEAF )
-  GTILV   = TILV  * RGRTV
+  print *, 'RGRTV', rgrtv
+  GTILV   = max(0.0, TILV)  * RGRTV
+  ! TGE = "temperature effect on initiaion of elongation in tillers"
   TGE     = max( 0., 1 - (abs(DAVTMP - TOPTGE))/(TOPTGE-TBASE))
+  ! RGRTVG = "relative rate of tillers becoming elongating tillers"
   RGRTVG1 = min( 1.-TV2TIL, NOHARV * DAYLGE * TGE * RGENMX ) * VERN
   TILVG1  = TILV  * RGRTVG1
   if (DAYL > DAYLG1G2) then

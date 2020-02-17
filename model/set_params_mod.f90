@@ -1,3 +1,7 @@
+module set_params_mod
+  
+contains
+  
 Subroutine set_params(pa)
 
 use parameters_site
@@ -145,5 +149,5 @@ WCWP  = FWCWP  * WCST
 WCFC  = FWCFC  * WCST
 WCWET = FWCWET * WCST
 
-return
-end
+end Subroutine set_params
+end module set_params_mod
