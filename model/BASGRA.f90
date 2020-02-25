@@ -447,7 +447,7 @@ do cycyear = 1, nyears
       y(total_day,109) = DRT       ! FLITTC_ROOT
       y(total_day,110) = DNSH ! FLITTN_LEAF
       y(total_day,111) = DNRT ! FLITTN_ROOT
-      
+      y(total_day,112) = VP 
 
       ! State equations plants
       CLV     = CLV     + GLV   - DLV    - HARVLV
