@@ -12,27 +12,20 @@ real :: GR, TMMN, TMMX, VP, WN
 
 real, dimension(:), allocatable :: YEARI, DOYI, RAINI, GRI, TMMNI, TMMXI, VPI, WNI, PETI
 
-#ifdef weathergen
-real :: PETI(NMAXDAYS)
-#endif
+!real :: PETI(NMAXDAYS)
 
 real :: DAVTMP,DAYL,DTR,PAR,PERMgas,PEVAP,poolRUNOFF,PTRAN,pWater,RAIN,RNINTC
 real :: runOn,StayWet,WmaxStore,Wsupply
 
-#ifdef weathergen
 real :: PET
-#endif
 
 Contains
-
 
   subroutine alloc_environment(ndays)
     integer, intent(in) :: ndays
     print *, 'Allocate env for:', ndays
     allocate(YEARI(ndays), DOYI(ndays), RAINI(ndays), GRI(ndays), TMMNI(ndays), TMMXI(ndays), VPI(ndays), WNI(ndays))
-#ifdef weathergen
     allocate(PETI(ndays))
-#endif
 
   end subroutine alloc_environment
 
@@ -41,30 +34,10 @@ Contains
     if (allocated(PETI)) deallocate(PETI)
   end subroutine dealloc_environment
   
-  
-#ifdef weathergen
-  Subroutine set_weather_day(day,DRYSTOR, year,doy)
+  Subroutine set_weather_day(day,DRYSTOR, year,doy, if_weathergen)
     integer :: day, doy, year
     real    :: DRYSTOR
-    if (day > size(yeari)) then
-       print *, 'Day:', day, 'max:', size(yeari)
-       stop
-    end if
-    year   = YEARI(day) ! day of the year (d)
-    doy    = DOYI(day)  ! day of the year (d)
-    RAIN   = RAINI(day) ! precipitation (mm d-1)	
-    GR     = GRI(day)   ! irradiation (MJ m-2 d-1)	
-    TMMN   = TMMNI(day) ! minimum temperature (degrees Celsius)
-    TMMX   = TMMXI(day) ! maximum temperature (degrees Celsius)
-    DAVTMP = (TMMN + TMMX)/2.0
-    DTR    = GR * exp(-KSNOW*DRYSTOR)
-    PAR    = 0.5*4.56*DTR
-    PET    = PETI(day)
-  end Subroutine set_weather_day
-#else
-  Subroutine set_weather_day(day,DRYSTOR, year,doy)
-    integer :: day, doy, year
-    real    :: DRYSTOR
+    logical, intent(in) :: if_weathergen
     if (day > size(yeari)) then
        print *, 'Day:', day, 'max:', size(yeari)
        stop
@@ -76,15 +49,19 @@ Contains
     GR     = GRI(day)   ! irradiation (MJ m-2 d-1)	
     TMMN   = TMMNI(day) ! minimum (or average) temperature (degrees Celsius)
     TMMX   = TMMXI(day) ! maximum (or average) temperature (degrees Celsius)
-    VP     = VPI(day)   ! vapour pressure (kPa)
-    WN     = WNI(day)   ! mean wind speed (m s-1)
+    
     DAVTMP = (TMMN + TMMX)/2.0
     DTR    = GR * exp(-KSNOW*DRYSTOR)
     PAR    = 0.5*4.56*DTR
-
+    if (if_weathergen) then
+       PET    = PETI(day)
+    else
+       VP     = VPI(day)   ! vapour pressure (kPa)
+       WN     = WNI(day)   ! mean wind speed (m s-1)
+    end if
+    
     print *, 'day year doy', day, year, doy
   end Subroutine set_weather_day
-#endif
 
 Subroutine MicroClimate(doy,DRYSTOR,Fdepth,Frate,LAI,Sdepth,Tsurf,WAPL,WAPS,WETSTOR, &
           FREEZEPL,INFIL,PackMelt,poolDrain,poolInfil,pSnow,reFreeze,SnowMelt,THAWPS,wRemain)
@@ -258,14 +235,13 @@ Subroutine DDAYL(doy)
   DAYL = 0.5 * ( 1. + 2. * asin(tan(RAD*LAT)*tan(DECC)) / pi )        ! (d d-1) 
 end Subroutine DDAYL
 
-#ifdef weathergen
   Subroutine PEVAPINPUT(LAI)
     real :: LAI
     PEVAP  =     exp(-0.5*LAI)  * PET                      ! (mm d-1)
     PTRAN  = (1.-exp(-0.5*LAI)) * PET                      ! (mm d-1)
     PTRAN  = max( 0., PTRAN-0.5*RNINTC )                   ! (mm d-1)
   end Subroutine PEVAPINPUT
-#else
+
   Subroutine PENMAN(LAI)
   !=============================================================================
   ! Calculate potential rates of evaporation and transpiration (mm d-1)
@@ -295,7 +271,6 @@ end Subroutine DDAYL
     PTRAN  = (1.-exp(-0.5*LAI)) * (PENMRC + PENMD) / LHVAP ! (mm d-1)
     PTRAN  = max( 0., PTRAN-0.5*RNINTC )                   ! (mm d-1)
   end Subroutine PENMAN
-#endif
 
 end module environment
 

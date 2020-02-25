@@ -7,7 +7,7 @@ Subroutine set_params(pa)
 use parameters_site
 use parameters_plant
 implicit none
-real :: pa(120) ! The length of pa() should be at least as high as the number of parameters
+real :: pa(:) ! The length of pa() should be at least as high as the number of parameters
 
 ! Initial constants
 LOG10CLVI  = pa(1)

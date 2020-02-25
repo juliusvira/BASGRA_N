@@ -1,6 +1,6 @@
 subroutine BASGRA( PARAMS, MATRIX_WEATHER, &
-                   CALENDAR_FERT, CALENDAR_NDEP, DAYS_HARVEST, &
-                   NDAYS, NYEARS, SIZE_WEATHER, soilcn_option, NOUT, y)
+                   CALENDAR_FERT, CALENDAR_NDEP, DAYS_HARVEST, soilcn_option, if_weathergen, &
+                   NDAYS, NYEARS, NWEATHER, SIZE_WEATHER, size_calendar, NOUT, y)
 !-------------------------------------------------------------------------------
 ! This is the BASic GRAss model originally written in MATLAB/Simulink by Marcel
 ! van Oijen, Mats Hoglind, Stig Morten Thorsen and Ad Schapendonk.
@@ -29,22 +29,22 @@ use nasso, only : num_c_pools, num_clim_par
 
 implicit none
 
-integer, dimension(100, 3) :: DAYS_HARVEST ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
-real                      :: PARAMS(120)
-#ifdef weathergen  
-  integer, parameter      :: NWEATHER =  7
-#else
-  integer, parameter      :: NWEATHER =  8
-#endif
+integer, intent(in), dimension(size_calendar, 3) :: DAYS_HARVEST ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
+real                      :: PARAMS(113)
 real                      :: MATRIX_WEATHER(SIZE_WEATHER,NWEATHER)
-real   , dimension(100,5) :: CALENDAR_FERT ! (ind_fert, year - 0 means any; doy; amount in gN/m2; type (1.0=mineral, 2.0=soluble organic); C:N ratio)
-real   , dimension(100,3) :: CALENDAR_NDEP 
-integer, dimension(100,2) :: DAYS_FERT    , DAYS_NDEP
-real   , dimension(100)   :: NDEPV
+! (ind_fert, year - 0 means any; doy; amount in gN/m2; type (1.0=mineral, 2.0=soluble organic); C:N ratio)
+real, intent(in), dimension(size_calendar,5) :: CALENDAR_FERT 
+real, intent(in), dimension(size_calendar,3) :: CALENDAR_NDEP 
 
-integer                   :: day, doy, i, NDAYS, NOUT, year, nyears, size_weather
-integer                   :: soilcn_option
-real                      :: y(NDAYS*NYEARS,NOUT)
+integer, intent(in)                   :: NDAYS, nyears, size_weather, size_calendar, NWEATHER
+integer, intent(in)                   :: NOUT
+integer, intent(in)                   :: soilcn_option
+logical, intent(in)                   :: if_weathergen
+real, intent(out)                     :: y(NDAYS*NYEARS,NOUT)
+
+integer :: day, i, year, doy
+integer, dimension(size_calendar,2) :: DAYS_FERT    , DAYS_NDEP
+real, dimension(size_calendar)   :: NDEPV
 
 ! State variables plants
 real    :: CLV, CLVD, CRES, CRT, CST, CSTUB, LAI, LT50, PHEN
@@ -106,14 +106,14 @@ DOYI   = MATRIX_WEATHER(:,2)
 GRI    = MATRIX_WEATHER(:,3)
 TMMNI  = MATRIX_WEATHER(:,4)
 TMMXI  = MATRIX_WEATHER(:,5)
-#ifdef weathergen  
-  RAINI = MATRIX_WEATHER(:,6)
-  PETI  = MATRIX_WEATHER(:,7)
-#else
-  VPI   = MATRIX_WEATHER(:,6)
-  RAINI = MATRIX_WEATHER(:,7)
-  WNI   = MATRIX_WEATHER(:,8)
-#endif
+if (NWEATHER == 7) then
+   RAINI = MATRIX_WEATHER(:,6)
+   PETI  = MATRIX_WEATHER(:,7)
+else
+   VPI   = MATRIX_WEATHER(:,6)
+   RAINI = MATRIX_WEATHER(:,7)
+   WNI   = MATRIX_WEATHER(:,8)
+end if
 
 ! Calendars
 DAYS_FERT  = CALENDAR_FERT (:,1:2)
@@ -226,17 +226,19 @@ do cycyear = 1, nyears
       end if
       ! Environment
       call DDAYL          (doy)
-      call set_weather_day(day,DRYSTOR,                    year,doy)
+      call set_weather_day(day, DRYSTOR, year, doy, if_weathergen)
       call SoilWaterContent(Fdepth,ROOTD,WAL)
       call Physics        (DAVTMP,Fdepth,ROOTD,Sdepth,WAS, Frate)
       call MicroClimate   (doy,DRYSTOR,Fdepth,Frate,LAI,Sdepth,Tsurf,WAPL,WAPS,WETSTOR, &
            FREEZEPL,INFIL,PackMelt,poolDrain,poolInfil, &
            pSnow,reFreeze,SnowMelt,THAWPS,wRemain)
-#ifdef weathergen  
-      call PEVAPINPUT     (LAI)
-#else
-      call PENMAN         (LAI)
-#endif
+
+      if (if_weathergen) then
+         call PEVAPINPUT     (LAI)
+      else
+         call PENMAN         (LAI)
+      end if
+
       ! Resources
       call Light          (DAYL,DTR,LAI,PAR)
       call EVAPTRTRF      (Fdepth,PEVAP,PTRAN,ROOTD,WAL,   EVAP,TRAN)
