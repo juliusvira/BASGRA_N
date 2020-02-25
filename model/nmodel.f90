@@ -11,7 +11,7 @@ module nmodel
   public nmodel1
   type, extends(base_yasso_t) :: nmodel1
      
-     real :: state(num_c_pools+2) ! the last index is a placeholder for nmin, but not used
+     real :: state(num_c_pools+1) ! the last index is a placeholder for nmin, but not used
      real :: ctend(num_c_pools)  ! per timestep
      real :: ntend               ! per timestep
      real :: matr(num_c_pools, num_c_pools)
@@ -41,6 +41,9 @@ module nmodel
      procedure, pass(this) :: cmatrix
      procedure, pass(this) :: load_state
      procedure, pass(this) :: init
+     procedure, pass(this) :: litt_awenh_to_cflux
+     procedure, pass(this) :: litt_n_to_nflux
+     procedure, pass(this) :: report
      
      procedure, pass(this), private :: eval_tend
      
@@ -316,6 +319,32 @@ contains
     end if
 
   end subroutine nstate
+
+  function litt_awenh_to_cflux(this, litt_awenh) result(cflux) 
+    class(nmodel1) :: this
+    real, intent(in) :: litt_awenh(:)
+    real :: cflux(this%get_csize())
+
+    cflux = litt_awenh
+    
+  end function litt_awenh_to_cflux
+
+  function litt_n_to_nflux(this, litt_n) result(nflux) 
+    class(nmodel1) :: this
+    real, intent(in) :: litt_n
+    real :: nflux(this%get_nsize())
+
+    nflux(1) = litt_n
+    
+  end function litt_n_to_nflux
+    
+  subroutine report(this)
+    class(nmodel1), intent(in) :: this
+    print *, '*** NMODEL1 ***'
+    print '(6A9)', 'A', 'W', 'E', 'N', 'H', 'NORG'
+    print '(6E9.2)', this%state
+    print *
+  end subroutine report
   
   
 end module nmodel

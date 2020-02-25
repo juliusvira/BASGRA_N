@@ -20,13 +20,16 @@ use environment
 use resources
 use soil
 use plant
-use basgra2yasso
-use nasso
+!use nasso
+use yassobase
+use nmodel
+use cascademodel
 use set_params_mod
+use nasso, only : num_c_pools, num_clim_par
 
 implicit none
 
-integer, dimension(max_harv_days, 3) :: DAYS_HARVEST ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
+integer, dimension(100, 3) :: DAYS_HARVEST ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
 real                      :: PARAMS(120)
 #ifdef weathergen  
   integer, parameter      :: NWEATHER =  7
@@ -72,7 +75,7 @@ real :: NCSHI, NCGSH, NCDSH, NCHARVSH, GNSH, DNSH, HARVNSH, GNRT, DNRT
 real :: NSHmob, NSHmobsoil, Nupt
 real :: harv_c_to_litt, harv_n_to_litt
 ! yasso
-real :: norg_runoff, soilc_runoff(num_c_pools)
+real, allocatable :: norg_runoff(:), soilc_runoff(:), nflux(:), cflux(:)
 
 real :: Ndep, Nfert_min, Nfert_org, Cfert, fertflag
 
@@ -85,28 +88,14 @@ logical :: if_cut_only
 ! yasso state variables
 real :: yasso_clim(num_clim_par)
 real :: cumlittc, cumsoilr, cumphot, nmin_trunc
-type(yasso_t) :: yasso_inst
-character(len=10) :: soilcn_model
-real :: ndemand_plant(1), nalloc_plant(1), nalloc_soil(2), ndemand_soil(2)
+class(base_yasso_t), allocatable :: yasso_inst
+real :: ndemand_plant(1), nalloc_plant(1)
+real, allocatable :: nalloc_soil(:), ndemand_soil(:)
+logical :: get_ic_from_yasso, need_yasso
+
+integer, parameter :: soilcn_basgra = 1, soilcn_nmodel1 = 2, soilcn_nmodel2cls = 3, soilcn_basgra_nm1 = 4, soilcn_basgra_nm2c = 5
 
 print *, 'Allocate for', size_weather, ndays, nyears
-call alloc_environment(size_weather)
-
-if (soilcn_option == 1) then
-   soilcn_model = 'basgra'
-else if (soilcn_option == 2) then
-   soilcn_model = 'yasso'
-   cumlittc = 0.0
-   cumsoilr = 0.0
-   cumphot = 0.0
-   nmin_trunc = 0.0
-else if (soilcn_option == 3) then
-   ! basgra with yasso initial condition
-   soilcn_model = 'basgra'
-else
-   print *, 'Bad soilcn_option', soilcn_option, ndays
-   return
-end if
 
 ! Parameters
 call set_params(PARAMS)
@@ -177,30 +166,61 @@ WAPS       = WAPSI
 WAS        = WASI
 WETSTOR    = WETSTORI
 
-if (soilcn_model == 'yasso') then
-   call init_yasso_from_files('parameters/yasso_parameters', 'initialisation/yasso_init', yasso_inst)
-   call load_yasso_clim('weather/yasso_clim', yasso_clim)
-   call map_yasso_to_basgra(yasso_inst, CLITT, CSOMF, CSOMS, NLITT, NSOMF, NSOMS)
-else if (soilcn_option == 3) then
-   call yasso_initcn2basgra('parameters/yasso_parameters', 'initialisation/yasso_init', &
-        CLITT, CSOMF, CSOMS, NLITT, NSOMF, NSOMS)
-end if
 
+
+
+select case(soilcn_option)
+case (soilcn_basgra)
+   get_ic_from_yasso = .false.
+   allocate(soilc_runoff(1), norg_runoff(1), ndemand_soil(1), nalloc_soil(1))
+   soilc_runoff = 0.0
+   norg_runoff = 0.0
+   
+case (soilcn_nmodel1, soilcn_nmodel2cls)
+   cumlittc = 0.0
+   cumsoilr = 0.0
+   cumphot = 0.0
+   nmin_trunc = 0.0
+   call yasso_factory(yasso_inst, soilcn_option)
+   call load_yasso_clim('weather/yasso_clim', yasso_clim)
+   allocate(soilc_runoff(yasso_inst%get_csize()), norg_runoff(yasso_inst%get_nsize()))
+   allocate(cflux(yasso_inst%get_csize()), nflux(yasso_inst%get_nsize()), &
+        ndemand_soil(yasso_inst%get_demand_size()), nalloc_soil(yasso_inst%get_demand_size()))
+   
+case (soilcn_basgra_nm1)
+   call yasso_factory(yasso_inst, soilcn_nmodel1)
+   print *, 'mapping to basgra'
+   call yasso_inst%map_to_basgra(CLITT, CSOMF, CSOMS, NLITT, NSOMF, NSOMS)
+   print *, 'deallocating'
+   deallocate(yasso_inst)
+   print *, 'ok'
+   allocate(soilc_runoff(1), norg_runoff(1))
+   
+case default
+   print *, 'Bad soilcn_option'
+   return
+end select
 
 total_day = 0
 do cycyear = 1, nyears
    do day = 1, NDAYS
       total_day = total_day + 1
-      if (day == 1 .and. soilcn_model == 'basgra') then
+      if (day == 1 .and. .not. allocated(yasso_inst)) then
          print *, 'Cycle:', cycyear
          print *, 'C:N, LITT', clitt / nlitt
          print *, 'C:N, SOMF', csomf / nsomf
          print *, 'C:N, SOMS', csoms / nsoms
-      else if (day > 0 .and. soilcn_model == 'yasso') then
+      else if (day > 0 .and. allocated(yasso_inst)) then
          print *, 'Year:', year, cycyear, day
-         print *, 'C:N, SOM', get_totc(yasso_inst) / get_norg(yasso_inst)
-         print *, 'C:N, AWEN', get_cn_awen(yasso_inst)
-         print '(A, 5F10.2)', 'AWENH', yasso_inst%state(1:5)
+         print *, 'C:N, SOM', yasso_inst%get_totc() / yasso_inst%get_norg()
+
+         if (yasso_inst%get_totc() / yasso_inst%get_norg() < 0 .or. yasso_inst%get_totc() / yasso_inst%get_norg() > 1000) then
+            print *, 'bad stuff'
+            call yasso_inst%report()
+            stop
+         end if
+         
+         print *, 'C:N, AWEN', yasso_inst%get_cn_awen()
          print *, 'Cumulative negative NMIN', nmin_trunc
          print *, 'NOHARV:', NOHARV, PHOT
       end if
@@ -239,13 +259,13 @@ do cycyear = 1, nyears
       ! 
       call growth_demand(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
            GLV,GRES,GRT,GST,RESMOB,NSHmob, ALLOTOT, GRESSI, ndemand_plant(1))
-      if (soilcn_model == 'yasso') then
-         call cn_decomp_demand(yasso_clim, delt, yasso_inst)
-         ndemand_soil = get_n_demand(yasso_inst)
+      if (allocated(yasso_inst)) then
+         call yasso_inst%decomp_demand(yasso_clim, delt)
+         ndemand_soil = yasso_inst%get_n_demand()
          call resolve_ndemand('demand_based', NMIN / TCNUPT, &
               ndemand_soil, ndemand_plant, &
               nalloc_soil, nalloc_plant)
-         call cn_decomp_final(yasso_inst, nalloc_soil)
+         call yasso_inst%decomp_final(yasso_clim, delt, nalloc_soil)
       else
          ndemand_soil = 0.0
          call resolve_ndemand('demand_based', NMIN / TCNUPT, &
@@ -262,21 +282,19 @@ do cycyear = 1, nyears
       ! Soil 2
       call O2fluxes       (O2,PERMgas,ROOTD,RplantAer,     O2IN,O2OUT)
       call N_fert         (year, doy, CALENDAR_FERT, Nfert_min, Nfert_org, Cfert, fertflag)
+      !print *, CALENDAR_FERT(1:5, 5)
+      !print *, 'fertflag', fertflag, Cfert, Nfert_min, Nfert_org
       call N_dep          (year,doy,DAYS_NDEP,NDEPV,       Ndep)
-
-      if (soilcn_model == 'basgra') then
-         call CNsoil         (ROOTD,RWA,WFPS,WAL,GRT,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOMS)
-      else if (soilcn_model == 'yasso') then
-         call cn_set_tend(yasso_clim, delt, yasso_inst)
-         call cn_otherflux(ROOTD, RWA, WFPS, WAL, GRT, yasso_inst, nmin, &
+      
+      if (allocated(yasso_inst)) then
+         call eval_otherfluxes(ROOTD, RWA, WFPS, WAL, GRT, yasso_inst, nmin, &
               soilc_runoff, norg_runoff, Nleaching, NemissionNO, NemissionN2O, Nfixation)
          Nemission = NemissionNO + NemissionN2O
          ! abuse the basgra state variables with a rough mapping to Yasso pools
-         call map_yasso_to_basgra(yasso_inst, CLITT, CSOMF, CSOMS, NLITT, NSOMF, NSOMS)
-         RSOIL = get_soilresp(yasso_inst)
-      else
-         print *, 'Bad soilcn_model', soilcn_model
-         return
+         call yasso_inst%map_to_basgra(CLITT, CSOMF, CSOMS, NLITT, NSOMF, NSOMS)
+         RSOIL = yasso_inst%get_soilresp()
+      else ! basgra
+         call CNsoil         (ROOTD,RWA,WFPS,WAL,GRT,CLITT,CSOMF,NLITT,NSOMF,NSOMS,NMIN,CSOMS)
       end if
 
       call Nplant         (NSHmob,CLV,CRT,CST,DLAI,DLV,DRT,GLAI,GLV,GRT,GST, &
@@ -420,7 +438,7 @@ do cycyear = 1, nyears
       y(total_day,100) = DAYL
       y(total_day,101) = GSTUB+GRT+GST+GLV ! GTOT
       y(total_day,102) = DNRT
-      y(total_day,103) = norg_runoff
+      y(total_day,103) = sum(norg_runoff)
       y(total_day,104) = GRT
       y(total_day,105) = NPP
       y(total_day,106) = NEE
@@ -471,26 +489,24 @@ do cycyear = 1, nyears
 
       ! State equations soil
 
-      ! Default BASGRA C & N
-      if (soilcn_model == 'basgra') then
+      if (allocated(yasso_inst)) then
+         nflux = yasso_inst%litt_n_to_nflux(DNSH + DNRT + harv_n_to_litt + nfert_org)
+         cflux = yasso_inst%litt_awenh_to_cflux(get_littc_awenh(DLV+DSTUB+harv_c_to_litt, DRT) &
+                                                + get_fertc_awenh(fertflag, Cfert))
+         call yasso_inst%update_state(cflux - soilc_runoff, nflux-norg_runoff)
+         nMineralisation = yasso_inst%get_netmin_act()
+         cumlittc = cumlittc + sum(get_littc_awenh(DLV+DSTUB+harv_c_to_litt, DRT))
+         cumsoilr = cumsoilr + yasso_inst%get_soilresp()
+         cumphot = cumphot + phot
+         call yasso_inst%report()
+      else
+         ! Default BASGRA C & N
          CLITT   = CLITT + DLV + DSTUB + harv_c_to_litt + Cfert - rCLITT - dCLITT
          CSOMF   = CSOMF + DRT         + dCLITTsomf - rCSOMF - dCSOMF
          CSOMS   = CSOMS               + dCSOMFsoms          - dCSOMS
          NLITT   = NLITT + DNSH        + harv_n_to_litt + Nfert_org      - rNLITT - dNLITT
          NSOMF   = NSOMF + DNRT + NLITTsomf - rNSOMF - dNSOMF 
          NSOMS   = NSOMS        + NSOMFsoms          - dNSOMS
-      else if (soilcn_model == 'yasso') then
-         call cn_state_update(yasso_inst, &
-              get_littc_awenh(DLV+DSTUB+harv_c_to_litt, DRT) + get_fertc_awenh(fertflag, Cfert) - soilc_runoff, &
-              DNSH + DNRT + harv_n_to_litt + nfert_org - norg_runoff)
-         !call cn_state_update(yasso_inst, &
-         !     get_littc_awenh(0.0, DRT) - soilc_runoff, &
-         !     DNRT-norg_runoff)
-
-         nMineralisation = get_netmin_act(yasso_inst)
-         cumlittc = cumlittc + sum(get_littc_awenh(DLV+DSTUB+harv_c_to_litt, DRT))
-         cumsoilr = cumsoilr + get_soilresp(yasso_inst)
-         cumphot = cumphot + phot
       end if
 
       ! Mineral N the same in basgra and yasso
@@ -518,11 +534,76 @@ do cycyear = 1, nyears
    enddo
 end do
 
-if (soilcn_model == 'yasso') then
-   call store_yasso_state(yasso_inst, 'yasso.state')
-end if
+print *, 'Done time loop'
 
+if (allocated(yasso_inst)) then
+   print *, 'store state'
+   call yasso_inst%store_state('yasso.state')
+   print *, 'done'
+end if
+print *, 'Dealloc'
 call dealloc_environment()
 
+contains
+
+  subroutine yasso_factory(inst, soilcn_model)
+    class(base_yasso_t), allocatable :: inst
+    integer, intent(in) :: soilcn_model
+
+    character(len=256) :: filename_inicn
+
+    print *, 'here', soilcn_model, soilcn_nmodel2cls
+    select case(soilcn_model)
+    case(soilcn_nmodel1)
+       allocate(nmodel1::inst)
+       filename_inicn = 'initialisation/yasso_init'
+    case(soilcn_nmodel2cls)
+       allocate(nmodel2cls::inst)
+       filename_inicn = 'initialisation/yasso_init.nmodel2cls'
+    case default
+       print *, 'Badsoilcn_model!!', soilcn_model
+       stop
+    end select
+    call inst%init_from_files('parameters/yasso_parameters', filename_inicn)
+       
+  end subroutine yasso_factory
+  
+  subroutine eval_otherfluxes(ROOTD, RWA, WFPS, WAL, GCR, yasso_inst, nmin, &
+       soilc_runoff, norg_runoff, nmin_leach, n_emis_no, n_emis_n2o, nfixation)
+    use parameters_site, only : KNFIX, RRUNBULK, KNEMIT, RFN2O, WFPS50N2O, RNLEACH
+    use soil, only : DRAIN, RUNOFF
+    real, intent(in) :: ROOTD, RWA, WFPS, WAL, GCR
+    class(base_yasso_t), intent(in) :: yasso_inst
+    real, intent(in) :: nmin
+    
+    real, intent(out) :: soilc_runoff(:)    ! C runoff from yasso C state
+    real, intent(out) :: norg_runoff(:)     ! N runoff from yasso N state
+    real, intent(out) :: nmin_leach         ! N leaching from NMIN
+    real, intent(out) :: n_emis_no          ! NOx emission
+    real, intent(out) :: n_emis_n2o         ! N2O emission
+    real, intent(out) :: nfixation          ! N fixation
+
+    real :: fN2O, Nemission
+    real :: cstate(yasso_inst%get_csize())
+    real :: nstate(yasso_inst%get_nsize())
+    
+    call yasso_inst%cstate(get=cstate)
+    soilc_runoff = (cstate*runoff / rootd)  * RRUNBULK * 0.001
+    call yasso_inst%nstate(get=nstate)
+    norg_runoff = (nstate*runoff / rootd) * RRUNBULK * 0.001
+
+    nfixation       = gCR * KNFIX
+    ! Nleaching       = (NMIN*RNLEACH*DRAIN) / WAL
+    if ((WAL > 0.) .and. (NMIN > 0.)) then
+       nmin_leach      = (NMIN*RNLEACH*DRAIN) / WAL
+    else
+       nmin_leach       = 0.0
+    end if
+
+    Nemission       = NMIN * KNEMIT * RWA
+    fN2O            = 1. / (1. + exp(-RFN2O*(WFPS-WFPS50N2O)))
+    n_emis_n2o    = Nemission *     fN2O
+    n_emis_no     = Nemission * (1.-fN2O)
+  end subroutine eval_otherfluxes
 end subroutine BASGRA
 

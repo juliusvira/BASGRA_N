@@ -46,7 +46,9 @@ module cascademodel
      procedure, pass(this) :: cstate
      procedure, pass(this) :: nstate
      procedure, pass(this) :: cmatrix
-     
+     procedure, pass(this) :: litt_awenh_to_cflux
+     procedure, pass(this) :: litt_n_to_nflux
+          
      procedure, pass(this), private :: setup
      procedure, pass(this), private :: eval_tend
      
@@ -54,6 +56,7 @@ module cascademodel
      procedure, pass(this) :: load_state
      procedure, pass(this) :: cstate_cls
      procedure, pass(this) :: get_ranges
+     procedure, pass(this) :: report
      
      final :: delete
   end type cascademodel_t
@@ -204,11 +207,11 @@ contains
        unit = fileunit_def
     end if
     
-    open(fileunit, file=filename, action='write')
+    open(unit, file=filename, action='write')
     call this%cstate(get=cstate)
     call this%nstate(get=nstate)
-    write(fileunit, *) cstate, nstate
-    close(fileunit) 
+    write(unit, *) cstate, nstate
+    close(unit) 
 
   end subroutine store_state
 
@@ -232,7 +235,13 @@ contains
 
     call this%cstate(set=cstate)
     call this%nstate(set=nstate)
-    
+
+    if (any(this%state < 0)) then
+       print *, 'Negative values in state from file:', filename
+       stop
+    end if
+
+    print *, this%state
   end subroutine load_state
   
   real function get_eff_awen(this, ind_cls) result(eff)
@@ -384,7 +393,6 @@ contains
     call load_params(filename_param, param)
     call this%init(param, aux_int=(/num_cls/), aux_real=ranges)
     call this%load_state(filename_initcn)
-    
   end subroutine casc_from_files
 
   subroutine cmatrix(this, clim, matr)
@@ -508,7 +516,7 @@ contains
        stop
     end if
 
-    call this%init(params, aux_int=(/2/), aux_real=(/365.0, 0.0/))
+    call this%cascademodel_t%init(params, aux_int=(/2/), aux_real=(/365.0, 0.0/))
     
   end subroutine init_2cls
 
@@ -535,5 +543,49 @@ contains
     
   end subroutine get_age_tend
   
+ function litt_awenh_to_cflux(this, litt_awenh) result(cflux) 
+    class(cascademodel_t) :: this
+    real, intent(in) :: litt_awenh(:)
+    real :: cflux(this%get_csize())
+
+    cflux(1:num_c_pools) = litt_awenh
+    if (this%num_cls > 1) cflux(num_c_pools+1:) = 0.0
+    
+  end function litt_awenh_to_cflux
+
+  function litt_n_to_nflux(this, litt_n) result(nflux) 
+    class(cascademodel_t) :: this
+    real, intent(in) :: litt_n
+    real :: nflux(this%get_nsize())
+
+    nflux = 0.0
+    nflux(1) = litt_n
+    
+  end function litt_n_to_nflux
+  
+  subroutine report(this)
+    class(cascademodel_t), intent(in) :: this
+
+    integer :: ind_cls
+    real :: chum, nhum, cntot, cawen, nawen
+    
+    print *, '*** CASCADEMODEL ***'
+    
+    do ind_cls = 1, this%num_cls
+       print *, 'CLASS', ind_cls
+       print '(6A9)', 'A', 'W', 'E', 'N', 'H', 'NORG'
+       print '(6E9.2)', this%state(:,ind_cls)
+       print '(6A9)', 'CTOT', 'NTOT', 'CNTOT', 'CAWEN', 'NAWEN', 'CNAWEN'
+       chum = this%state(5,ind_cls)
+       nhum = chum*this%param(ind_nc_humus)
+       cawen = sum(this%state(1:4,ind_cls))
+       nawen = this%state(6,ind_cls) - nhum
+       if (cawen > 0.0) then
+          print '(2E9.2,F9.2,2E9.2,F9.2)', chum+cawen, this%state(6,ind_cls), (chum+cawen)/this%state(6,ind_cls), &
+               cawen, nawen, cawen/nawen
+       end if
+    end do
+    
+  end subroutine report
   
 end module cascademodel

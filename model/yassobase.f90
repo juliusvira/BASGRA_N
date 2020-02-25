@@ -1,6 +1,5 @@
 module yassobase
   use nasso
-
   implicit none
   private
 
@@ -10,6 +9,7 @@ module yassobase
   public load_yasso_clim
   public load_params
   public init_from_files
+  public get_daily_clim
   
   integer, parameter :: fileunit_def = 30
   
@@ -47,63 +47,89 @@ module yassobase
      procedure(cstate), pass(this), deferred :: cstate
      procedure(nstate), pass(this), deferred :: nstate
      procedure(init), pass(this), deferred :: init
-     
-     !procedure, pass(this) :: init_from_files
+     procedure(litt_awenh_to_cflux), pass(this), deferred :: litt_awenh_to_cflux
+     procedure(litt_n_to_nflux), pass(this), deferred :: litt_n_to_nflux
+     procedure, pass(this) :: init_from_files
      procedure, pass(this) :: get_params
      procedure, pass(this) :: set_params
      procedure, pass(this) :: set_sizes
      procedure, pass(this) :: delete
      procedure, pass(this) :: test
+     procedure(report), pass(this), deferred :: report
      !procedure, pass(this) :: init
 
   end type base_yasso_t
 
+  interface load_yasso_clim
+     module procedure load_yasso_clim_1d
+     module procedure load_yasso_clim_2d
+  end interface load_yasso_clim
+  
   abstract interface
 
- 
+     !**********************************************************************************
+     !
+     ! Abstract methods for base_yasso_t
+     !
+     !**********************************************************************************
+     
+     subroutine report(this)
+       import :: base_yasso_t
+       class(base_yasso_t), intent(in) :: this
+     end subroutine report
+     
      function get_n_demand(this) result(demand)
+       ! Return the N required to realize the potential decomposition. The model may have
+       ! several N-consuming steps, which are here considered separately.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real :: demand(this%demand_size)
      end function get_n_demand
 
      function get_norg(this) result(norg)
+       ! Return the total organic N in SOM.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real :: norg
      end function get_norg
      
      function get_netmin_act(this) result(net)
+       ! Return the actual net mineralization flux after adjusting for N limitation.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real :: net
      end function get_netmin_act
 
      function get_totc(this) result(totc)
+       ! Return the total soil C.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real :: totc
      end function get_totc
 
      function get_cn_awen(this) result(ratio)
+       ! Return the C:N ratio in the AWEN pools, excluding H.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real :: ratio
      end function get_cn_awen
 
      function get_soilresp(this) result(resp)
+       ! Return the heterotrophic respiration flux.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real :: resp
      end function get_soilresp
 
      subroutine map_to_basgra(this, clitt, csomf, csoms, nlitt, nsomf, nsoms)
+       ! Map the C and N in the model pools to the BASGRA-N litter and SOM C and N pools.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        real, intent(out) :: clitt, csomf, csoms, nlitt, nsomf, nsoms
      end subroutine map_to_basgra
 
      subroutine store_state(this, filename, fileunit)
+       ! Store the model state into a file.
        import :: base_yasso_t
        class(base_yasso_t), intent(in) :: this
        character(len=*), intent(in) :: filename
@@ -111,6 +137,7 @@ module yassobase
      end subroutine store_state
 
      subroutine decomp_demand(this, climate, timestep_days)
+       ! Evaluate the potential decomposition and store it internally.
        import :: base_yasso_t, num_clim_par
        class(base_yasso_t), intent(inout) :: this
        real, intent(in) :: climate(:)
@@ -118,6 +145,7 @@ module yassobase
      end subroutine decomp_demand
 
      subroutine decomp_final(this, climate, timestep_days, n_alloc_soil)
+       ! Evaluate the final decomposition given the N allocation.
        import :: base_yasso_t
        class(base_yasso_t), intent(inout) :: this
        real, intent(in) :: climate(:)
@@ -133,9 +161,12 @@ module yassobase
      end subroutine eval_tend
 
      subroutine update_state(this, cflux, nflux)
+       ! Update the state vector according to the internal tendencies (calculated earlier)
+       ! and forced tendencies (cflux and nflux).
        import :: base_yasso_t
        class(base_yasso_t), intent(inout) :: this
-       real, intent(in) :: cflux(:), nflux(:)
+       real, intent(in) :: cflux(:), nflux(:) ! C and N flux into the model. These shall
+                                              ! have the dimensions of csize and nsize.
 
      end subroutine update_state
 
@@ -155,6 +186,7 @@ module yassobase
      end subroutine cmatrix
 
      subroutine cstate(this, get, set)
+       ! Set/get the vector (size given by get_csize()) of carbon pools.
        import :: base_yasso_t
        class(base_yasso_t) :: this
        real, intent(out), optional :: get(:)
@@ -162,6 +194,7 @@ module yassobase
      end subroutine cstate
 
      subroutine nstate(this, get, set)
+       ! Set/get the vector (size given by get_nsize()) of nitrogen pools.
        import :: base_yasso_t
        class(base_yasso_t) :: this
        real, intent(out), optional :: get(:)
@@ -169,6 +202,7 @@ module yassobase
      end subroutine nstate
 
      subroutine load_state(this, filename, fileunit)
+       ! Load the model state from a file as written by store_state.
        import :: base_yasso_t
        class(base_yasso_t), intent(inout) :: this
        character(len=*), intent(in) :: filename
@@ -176,6 +210,8 @@ module yassobase
      end subroutine load_state
 
      subroutine init(this, params, aux_int, aux_real)
+       ! Initialize a generic yasso-N instance. The optional arguments allow passing
+       ! additional integer or real parameters as needed by subclasses.
        import :: base_yasso_t
        class(base_yasso_t), intent(out) :: this
        real, intent(in) :: params(:)
@@ -184,23 +220,51 @@ module yassobase
        ! No point in creating a default implementation for base_yasso_t since it seems
        ! that subclasses cannot call the methods of an abstract super.
      end subroutine init
+     
+     function litt_awenh_to_cflux(this, litt_awenh) result(cflux)
+       ! Attribute the litter C input AWENH into the model pools as reqruied for
+       ! update_state.
+       import :: base_yasso_t
+       class(base_yasso_t) :: this
+       real, intent(in) :: litt_awenh(:)
+       real :: cflux(this%get_csize())
+     end function litt_awenh_to_cflux
+
+     function litt_n_to_nflux(this, litt_n) result(nflux)
+       ! Attribute the litter C input AWENH into the model pools as reqruied for
+       ! update_state.
+       import :: base_yasso_t
+       class(base_yasso_t) :: this
+       real, intent(in) :: litt_n
+       real :: nflux(this%get_nsize())
+     end function litt_n_to_nflux
 
   end interface
 
 contains
 
+  !**********************************************************************************
+  !
+  ! Non-abstract methods for base_yasso_t.
+  !
+  !**********************************************************************************
   
   pure integer function get_demand_size(this) result(s)
+    ! Return the number of N demand components, as use in get_n_demand().
     class(base_yasso_t), intent(in) :: this
     s = this%demand_size
   end function get_demand_size
 
   pure integer function get_csize(this) result(s)
+    ! Return the number of C pools, as required for the cstate subroutine and cflux
+    ! argument in update_state.
     class(base_yasso_t), intent(in) :: this
     s = this%cstate_size
   end function get_csize
 
   pure integer function get_nsize(this) result(s)
+    ! Return the number of N pools, as required for the cstate subroutine and cflux
+    ! argument in update_state.
     class(base_yasso_t), intent(in) :: this
     s = this%nstate_size
   end function get_nsize
@@ -218,6 +282,7 @@ contains
   end function test
   
   subroutine init_from_files(this, filename_param, filename_initcn, fileunit)
+    ! Initialize this instance from parameter and initial condition files.
     class(base_yasso_t), intent(out) :: this
     character(len=*), intent(in) :: filename_param
     character(len=*), intent(in) :: filename_initcn
@@ -237,9 +302,43 @@ contains
     
   end subroutine init_from_files
   
-  subroutine load_yasso_clim(filename_clim, clim, fileunit)
-    character(len=*), intent(in) :: filename_clim
-    real, intent(out) :: clim(:)
+  subroutine set_sizes(this, demand_size, csize, nsize)
+    class(base_yasso_t), intent(inout) :: this
+    integer, intent(in) :: demand_size, csize, nsize
+
+    this%demand_size = demand_size
+    this%cstate_size = csize
+    this%nstate_size = nsize
+    
+  end subroutine set_sizes
+
+  subroutine get_params(this, params)
+    class(base_yasso_t), intent(in) :: this
+    real, intent(out) :: params(num_parameters)
+
+    params = this%param
+    
+  end subroutine get_params
+
+  subroutine set_params(this, params)
+    class(base_yasso_t), intent(inout) :: this
+    real, intent(in) :: params(num_parameters)
+
+    this%param = params
+    
+  end subroutine set_params
+
+
+  !**********************************************************************************
+  !
+  ! Common subroutines for the YASSO models
+  !
+  !**********************************************************************************
+  
+  subroutine load_yasso_clim_1d(filename, clim, fileunit)
+    ! Load the constant climate forcing, one line in file.
+    character(len=*), intent(in) :: filename
+    real, intent(out) :: clim(:) ! climpar
     integer, intent(in), optional :: fileunit
     
     integer :: unit
@@ -248,12 +347,75 @@ contains
     else
        unit = fileunit_def
     end if
-    open(unit, file=filename_clim, action='read', status='old')
+    open(unit, file=filename, action='read', status='old')
     read(unit, *) clim(1:num_clim_par)
     close(unit)
     
-  end subroutine load_yasso_clim
+  end subroutine load_yasso_clim_1d
 
+  subroutine load_yasso_clim_2d(filename, clim, fileunit)
+    ! Load the daily climate forcing, multi-line file.
+    use iso_fortran_env, only : iostat_end
+    character(len=*), intent(in) :: filename
+    real, intent(out) :: clim(:,:) ! climpar, day
+    integer, intent(in), optional :: fileunit
+    
+    integer :: unit, iostat, ind_row
+    real :: tmp(num_clim_par+2)
+    
+    if (present(fileunit)) then
+       unit = fileunit
+    else
+       unit = fileunit_def
+    end if
+    open(unit, file=filename, action='read', status='old')
+    ind_row = 0
+    do
+       read(unit, *, iostat=iostat) tmp
+       if (iostat == 0) then
+          ind_row = ind_row + 1
+          if (ind_row > size(clim,2)) then
+             print *, 'clim argument too small'
+             stop
+          end if
+          clim(:, ind_row) = tmp
+       else if (iostat == iostat_end) then
+          exit
+       else
+          print *, 'Bad iostat:', iostat
+          stop
+       end if
+    end do
+    close(unit)
+    clim(:,ind_row+1:) = 0.0
+    
+  end subroutine load_yasso_clim_2d
+  
+  subroutine get_daily_clim(year, doy, clim_full, clim_day, found)
+    integer, intent(in) :: year, doy
+    real, intent(in) :: clim_full(:,:)
+    real, intent(out) :: clim_day(:)
+    logical, intent(out) :: found
+    
+    integer :: ind_last = 1
+    integer :: ind_row
+    
+    if (clim_full(1,ind_last) > year .or. (abs(clim_full(1,ind_last)-year) < 1e-5 .and. clim_full(2,ind_last) > doy)) then
+       ! start over
+       ind_last = 1
+    end if
+    found = .false.
+    do ind_row = ind_last, size(clim_full, 2)
+       if (abs(clim_full(1,ind_row)-year) < 1e-5 .and. abs(clim_full(2,ind_row)-doy) < 1e-5) then
+          clim_day = clim_full(3:, ind_row)
+          ind_last = ind_row
+          found = .true.
+          exit
+       end if
+    end do
+    
+  end subroutine get_daily_clim
+  
   function get_littc_awenh(leaf_littc, fineroot_littc) result(litter_awenh)
     real, intent(in) :: leaf_littc, fineroot_littc
     real :: litter_awenh(5)
@@ -295,34 +457,7 @@ contains
     close(fun)
     
   end subroutine load_params
-  
-  subroutine set_sizes(this, demand_size, csize, nsize)
-    class(base_yasso_t), intent(inout) :: this
-    integer, intent(in) :: demand_size, csize, nsize
-
-    this%demand_size = demand_size
-    this%cstate_size = csize
-    this%nstate_size = nsize
     
-  end subroutine set_sizes
-
-  subroutine get_params(this, params)
-    class(base_yasso_t), intent(in) :: this
-    real, intent(out) :: params(num_parameters)
-
-    params = this%param
-    
-  end subroutine get_params
-
-
-  subroutine set_params(this, params)
-    class(base_yasso_t), intent(inout) :: this
-    real, intent(in) :: params(num_parameters)
-
-    this%param = params
-    
-  end subroutine set_params
-  
   subroutine resolve_ndemand(method, nmin_avail, &
        demand_soil, demand_plant, alloc_soil, alloc_plant)
     character(len=*), intent(in) :: method
@@ -370,5 +505,7 @@ contains
 !!$    print *, 'Inhib:', inhib
     
   end subroutine resolve_ndemand
+
+  
   
 end module yassobase

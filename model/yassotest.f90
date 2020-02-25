@@ -18,7 +18,8 @@ program yassotest
   type(nmodel2cls) :: nmodel2cls_inst
   
   real :: clim(num_clim_par), param(num_parameters)
-  character(len=*), parameter :: yasso_init_1cls = 'initialisation/yasso_init'
+  character(len=*), parameter :: yasso_init_1cls = 'initialisation/yasso_init', &
+       yasso_init_2cls = 'initialisation/yasso_init_2age_test'
   print *, 'hoh hoh hoh'
     
 
@@ -34,7 +35,14 @@ program yassotest
   print *, '*** NMODEL1CLS ***'
   call run_all_tests(nmodel1cls_inst, yasso_init_1cls)
 
+  print *, '*** NMODLE2CLS ***'
+  call run_all_tests(nmodel2cls_inst, yasso_init_2cls)
+  
+  print *, '*** CASCADE TESTS ***'
   call cascade_tests()
+
+  print *, '*** CLIM TESTS ***'
+  call test_clim()
   
   !call nmodel1cls_inst%init_from_files('parameters/yasso_parameters', 'initialisation/yasso_init')
   !call test(nmodel1cls_inst)
@@ -64,7 +72,9 @@ contains
     call run_test(test_map_to_basgra, inst, cs, ns)
     call run_test(test_matrix, inst, cs, ns)
     call run_test(test_self, inst, cs, ns)
-    
+    call run_test(test_cn_fluxes, inst, cs, ns)
+    call run_test(test_store_load, inst, cs, ns)
+    call run_test(test_report, inst, cs, ns)
   end subroutine run_all_tests
 
   subroutine run_test(testsub, inst, cs, ns)
@@ -78,6 +88,51 @@ contains
     
   end subroutine run_test
 
+  subroutine test_report(inst)
+    class(base_yasso_t) :: inst
+
+    call inst%report()
+    
+  end subroutine test_report
+  
+  subroutine test_store_load(inst)
+    class(base_yasso_t) :: inst
+    character(len=*), parameter :: filename = '__yassotest.tmp__'
+
+    real :: cstate_before(inst%get_csize()), nstate_before(inst%get_nsize()),&
+         cstate_after(inst%get_csize()), nstate_after(inst%get_nsize()), &
+         zeros(max(inst%get_csize(), inst%get_nsize()))
+    
+    call inst%store_state(filename)
+    call inst%cstate(get=cstate_before)
+    call inst%nstate(get=nstate_before)
+    zeros = 0.0
+    call inst%cstate(set=zeros(1:inst%get_csize()))
+    call inst%nstate(set=zeros(1:inst%get_nsize()))
+    
+    call inst%load_state(filename)
+    call inst%cstate(get=cstate_after)
+    call check(all(almost(cstate_before, cstate_after)), 'Load-store C')
+    call inst%nstate(get=nstate_after)
+    call check(all(almost(nstate_before, nstate_after)), 'Load-store N')
+    
+  end subroutine test_store_load
+  
+  subroutine test_cn_fluxes(inst)
+    class(base_yasso_t) :: inst
+
+    real :: awenh(5), cflux(inst%get_csize()), nflux(inst%get_nsize())
+    
+    awenh = (/1.0, 2.0, 3.0, 4.0, 5.0/)
+    cflux = inst%litt_awenh_to_cflux(awenh)
+    call check(almost(sum(awenh), sum(cflux)), 'C-flux totals')
+    call check(all(almost(awenh, cflux(1:5))), 'C-flux elementwise')
+    nflux = inst%litt_n_to_nflux(1.0)
+    call check(almost(sum(nflux), 1.0), 'N-flux totals')
+
+    
+  end subroutine test_cn_fluxes
+  
   subroutine test_zero(inst)
     class(base_yasso_t) :: inst
 
@@ -134,6 +189,8 @@ contains
     ntmp = 0.0
     call inst%update_state(ctmp, ntmp)
     call inst%cstate(get=ctmp)
+    !print *, matmul(matrix,cstate)
+    !print *, ctmp(1:csize)-cstate
     call check(all(almost(matmul(matrix,cstate), (ctmp(1:csize)-cstate))), 'Matrix')
     !print *, 'matrix', matrix
 
@@ -303,6 +360,45 @@ contains
     
     
   end subroutine cascade_tests
+
+  subroutine test_clim()
+    character(len=*), parameter :: tmpfile = '__clim.tmp__'
+
+    integer :: year, doy
+    integer :: doy_missing = 281, unit = 999
+    real :: clim_full(5,1000), clim_day(3)
+    logical :: found
+    
+    open(unit, file=tmpfile, action='write')
+
+    do year = 2001, 2002
+       do doy = 1, 365
+          if (doy /= doy_missing) then
+             write(unit, fmt=*) year, doy, year+doy, year-doy, year*doy
+          end if
+       end do
+    end do
+    close(unit)
+
+    clim_full = 0.0
+    call load_yasso_clim(tmpfile, clim_full)
+
+    call get_daily_clim(2002, 280, clim_full, clim_day, found)
+    call check(found, 'Daily clim found 1')
+    call check(almost(clim_day(1), real(2002+280)), 'clim par 1.1')
+    call check(almost(clim_day(2), real(2002-280)), 'clim par 1.2')
+    call check(almost(clim_day(3), real(2002*280)), 'clim par 1.3')
+
+    call get_daily_clim(2001, 111, clim_full, clim_day, found)
+    call check(found, 'Daily clim found 2')
+    call check(almost(clim_day(1), real(2001+111)), 'clim par 2.1')
+    call check(almost(clim_day(2), real(2001-111)), 'clim par 2.2')
+    call check(almost(clim_day(3), real(2001*111)), 'clim par 2.3')
+
+    call get_daily_clim(2002, doy_missing, clim_full, clim_day, found)
+    call check(.not. found, 'Missing day')
+    
+  end subroutine test_clim
   
   subroutine state_from_files(yasso_inst, filename_init, cstate, nstate)
     use yassobase, only : init_from_files

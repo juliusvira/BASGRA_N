@@ -122,8 +122,8 @@ Subroutine N_fert(year, doy, CALENDAR_FERT, Nfert_min, Nfert_org, Cfert, fertfla
         nfert_tot = CALENDAR_FERT(i,3) * NFERTMULT
         fertflag = CALENDAR_FERT(i,4)
         if (fertflag > 0) then
-           Cfert = nfert_org * CALENDAR_FERT(i,5)
            nfert_org = nfert_tot
+           Cfert = nfert_org * CALENDAR_FERT(i,5)
            nfert_min = 0.0
         else
            Cfert = 0.0

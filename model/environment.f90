@@ -28,7 +28,7 @@ Contains
 
   subroutine alloc_environment(ndays)
     integer, intent(in) :: ndays
-
+    print *, 'Allocate env for:', ndays
     allocate(YEARI(ndays), DOYI(ndays), RAINI(ndays), GRI(ndays), TMMNI(ndays), TMMXI(ndays), VPI(ndays), WNI(ndays))
 #ifdef weathergen
     allocate(PETI(ndays))

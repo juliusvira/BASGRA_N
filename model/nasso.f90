@@ -3,7 +3,7 @@ module nasso
 
   public
 
-  integer, parameter, public :: state_size = 7
+  integer, parameter, public :: state_size = 6
   integer, parameter, public :: ind_norg = 6, ind_nmin = 7
   integer, parameter, public :: num_c_pools = 5
 
@@ -143,7 +143,7 @@ contains
   subroutine get_actfluxes(state, fluxes_awen_pot, fluxes_h, matr, fluxes_awen_act, inhib, matr_inhib)
     implicit none
     !f2py integer, intent(aux) :: num_fluxes, num_c_pools, state_size
-    real(rp), intent(in), dimension(state_size) :: state
+    real(rp), intent(in), dimension(state_size+1) :: state ! with nmin
     real(rp), intent(in), dimension(num_fluxes) :: fluxes_awen_pot, fluxes_h
     real(rp), intent(in), dimension(num_c_pools, num_c_pools) :: matr
     real(rp), intent(out), dimension(num_fluxes) :: fluxes_awen_act
@@ -176,7 +176,7 @@ contains
     real(rp), intent(in), dimension(num_c_pools) :: littc ! litter C input per timestep unit
     real(rp), intent(in) :: littn ! litter N input per timestep unit
     real(rp), intent(in) :: nuptake ! mineral N uptake per timestep unit
-    real(rp), intent(in), dimension(state_size) :: state ! AWENH, NORG, NMIN
+    real(rp), intent(in), dimension(state_size+1) :: state ! AWENH, NORG, NMIN
     real(rp), intent(out), dimension(size(state)) :: state_new 
 
     real(rp), dimension(num_c_pools, num_c_pools) :: matr, matr_inhib
