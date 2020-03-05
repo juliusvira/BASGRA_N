@@ -1,6 +1,6 @@
-subroutine BASGRA( PARAMS, MATRIX_WEATHER, &
+subroutine BASGRA( PARAMS, MATRIX_WEATHER, weather_yasso, yasso_init, yasso_params, &
                    CALENDAR_FERT, CALENDAR_NDEP, DAYS_HARVEST, soilcn_option, if_weathergen, &
-                   NDAYS, NYEARS, NWEATHER, SIZE_WEATHER, size_calendar, NOUT, y)
+                   NDAYS, NYEARS, NWEATHER, SIZE_WEATHER, size_calendar, size_yasso_init, size_yasso_params, NOUT, y)
 !-------------------------------------------------------------------------------
 ! This is the BASic GRAss model originally written in MATLAB/Simulink by Marcel
 ! van Oijen, Mats Hoglind, Stig Morten Thorsen and Ad Schapendonk.
@@ -20,27 +20,35 @@ use environment
 use resources
 use soil
 use plant
-!use nasso
 use yassobase
 use nmodel
 use cascademodel
 use set_params_mod
-use nasso, only : num_c_pools, num_clim_par
+use yassocore, only : num_c_pools, num_clim_par, num_yasso_param => num_parameters
 
 implicit none
 
-integer, intent(in), dimension(size_calendar, 3) :: DAYS_HARVEST ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
-real                      :: PARAMS(113)
-real                      :: MATRIX_WEATHER(SIZE_WEATHER,NWEATHER)
-! (ind_fert, year - 0 means any; doy; amount in gN/m2; type (1.0=mineral, 2.0=soluble organic); C:N ratio)
-real, intent(in), dimension(size_calendar,5) :: CALENDAR_FERT 
-real, intent(in), dimension(size_calendar,3) :: CALENDAR_NDEP 
+real, intent(in)          :: PARAMS(113) ! Parameters for BASGRA
+real, intent(in)          :: MATRIX_WEATHER(SIZE_WEATHER,NWEATHER) ! (number of days, number of parameters)
+real, intent(in)          :: weather_yasso(5, SIZE_WEATHER)        ! (number of parameters, number of days)
+real, intent(in)          :: yasso_init(size_yasso_init)           ! (yasso initial state)
+real, intent(in)          :: yasso_params(size_yasso_params)       ! yasso parameters
+! CALENDAR_FERT: (ind_fert, year - 0 means any; doy; amount in gN/m2; type (1.0=mineral, 2.0=soluble organic); C:N ratio)
+real, intent(in), dimension(size_calendar,5) :: CALENDAR_FERT
+real, intent(in), dimension(size_calendar,3) :: CALENDAR_NDEP      ! (ind_entry, year-doy-rate)
+integer, intent(in), dimension(size_calendar, 3) :: DAYS_HARVEST   ! (ind_harvest, year - 0 means any; doy; flag(0=harvest, >0 = cut only))
 
-integer, intent(in)                   :: NDAYS, nyears, size_weather, size_calendar, NWEATHER
-integer, intent(in)                   :: NOUT
+! Possible values for soilcn_option:
+integer, parameter :: soilcn_basgra = 1, soilcn_nmodel1 = 2, soilcn_nmodel2cls = 3, soilcn_basgra_nm1 = 4, soilcn_basgra_nm2c = 5
 integer, intent(in)                   :: soilcn_option
-logical, intent(in)                   :: if_weathergen
-real, intent(out)                     :: y(NDAYS*NYEARS,NOUT)
+
+logical, intent(in)                   :: if_weathergen             ! "weather handling mode" for BASGRA
+integer, intent(in)                   :: NDAYS                     ! number of days for each cycled year (365 for full years when nyears > 1)
+integer, intent(in)                   :: nyears                    ! number of years to cycle over, set to 1 when running "real" calendar years
+
+integer, intent(in)                   :: size_weather, size_calendar, NWEATHER, size_yasso_init, size_yasso_params
+integer, intent(in)                   :: NOUT                      ! number of outputs
+real, intent(out)                     :: y(NDAYS*NYEARS,NOUT)      ! output
 
 integer :: day, i, year, doy
 integer, dimension(size_calendar,2) :: DAYS_FERT    , DAYS_NDEP
@@ -74,8 +82,7 @@ real :: RGRTVG1, RROOTD, SnowMelt, THAWPS, THAWS, TILVG1, TILG1G2, TRAN, Wremain
 real :: NCSHI, NCGSH, NCDSH, NCHARVSH, GNSH, DNSH, HARVNSH, GNRT, DNRT
 real :: NSHmob, NSHmobsoil, Nupt
 real :: harv_c_to_litt, harv_n_to_litt
-! yasso
-real, allocatable :: norg_runoff(:), soilc_runoff(:), nflux(:), cflux(:)
+
 
 real :: Ndep, Nfert_min, Nfert_org, Cfert, fertflag
 
@@ -83,7 +90,7 @@ real :: F_DIGEST_DM, F_DIGEST_DMSH, F_DIGEST_LV, F_DIGEST_ST, F_DIGEST_WALL
 real :: F_WALL_DM  , F_WALL_DMSH  , F_WALL_LV  , F_WALL_ST
 real :: GRESSI, ALLOTOT
 integer :: cycyear, total_day
-logical :: if_cut_only
+logical :: if_cut_only, wx_found
 
 ! yasso state variables
 real :: yasso_clim(num_clim_par)
@@ -93,9 +100,8 @@ real :: ndemand_plant(1), nalloc_plant(1)
 real, allocatable :: nalloc_soil(:), ndemand_soil(:)
 logical :: get_ic_from_yasso, need_yasso
 
-integer, parameter :: soilcn_basgra = 1, soilcn_nmodel1 = 2, soilcn_nmodel2cls = 3, soilcn_basgra_nm1 = 4, soilcn_basgra_nm2c = 5
-
-print *, 'Allocate for', size_weather, ndays, nyears
+! yasso flux variables
+real, allocatable :: norg_runoff(:), soilc_runoff(:), nflux(:), cflux(:)
 
 ! Parameters
 call set_params(PARAMS)
@@ -181,19 +187,15 @@ case (soilcn_nmodel1, soilcn_nmodel2cls)
    cumsoilr = 0.0
    cumphot = 0.0
    nmin_trunc = 0.0
-   call yasso_factory(yasso_inst, soilcn_option)
-   call load_yasso_clim('weather/yasso_clim', yasso_clim)
+   call yasso_factory(yasso_inst, soilcn_option, yasso_init, yasso_params)
    allocate(soilc_runoff(yasso_inst%get_csize()), norg_runoff(yasso_inst%get_nsize()))
    allocate(cflux(yasso_inst%get_csize()), nflux(yasso_inst%get_nsize()), &
         ndemand_soil(yasso_inst%get_demand_size()), nalloc_soil(yasso_inst%get_demand_size()))
    
 case (soilcn_basgra_nm1)
-   call yasso_factory(yasso_inst, soilcn_nmodel1)
-   print *, 'mapping to basgra'
+   call yasso_factory(yasso_inst, soilcn_nmodel1, yasso_init, yasso_params)
    call yasso_inst%map_to_basgra(CLITT, CSOMF, CSOMS, NLITT, NSOMF, NSOMS)
-   print *, 'deallocating'
    deallocate(yasso_inst)
-   print *, 'ok'
    allocate(soilc_runoff(1), norg_runoff(1))
    
 case default
@@ -207,23 +209,15 @@ do cycyear = 1, nyears
       total_day = total_day + 1
       if (day == 1 .and. .not. allocated(yasso_inst)) then
          print *, 'Cycle:', cycyear
-         print *, 'C:N, LITT', clitt / nlitt
-         print *, 'C:N, SOMF', csomf / nsomf
-         print *, 'C:N, SOMS', csoms / nsoms
       else if (day > 0 .and. allocated(yasso_inst)) then
          print *, 'Year:', year, cycyear, day
-         print *, 'C:N, SOM', yasso_inst%get_totc() / yasso_inst%get_norg()
-
          if (yasso_inst%get_totc() / yasso_inst%get_norg() < 0 .or. yasso_inst%get_totc() / yasso_inst%get_norg() > 1000) then
-            print *, 'bad stuff'
+            print *, 'Inconsistent yasso state'
             call yasso_inst%report()
             stop
          end if
-         
-         print *, 'C:N, AWEN', yasso_inst%get_cn_awen()
-         print *, 'Cumulative negative NMIN', nmin_trunc
-         print *, 'NOHARV:', NOHARV, PHOT
       end if
+      
       ! Environment
       call DDAYL          (doy)
       call set_weather_day(day, DRYSTOR, year, doy, if_weathergen)
@@ -258,10 +252,15 @@ do cycyear = 1, nyears
       ! call Growth         (LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
       !                                                      GLV,GRES,GRT,GST,RESMOB,NSHmob)
 
-      ! 
+      !
       call growth_demand(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANRF, &
            GLV,GRES,GRT,GST,RESMOB,NSHmob, ALLOTOT, GRESSI, ndemand_plant(1))
       if (allocated(yasso_inst)) then
+         call get_daily_clim(year, doy, weather_yasso, yasso_clim, wx_found)
+         if (.not. wx_found) then
+            print *, 'Failed to find weather for yasso'
+            stop
+         end if
          call yasso_inst%decomp_demand(yasso_clim, delt)
          ndemand_soil = yasso_inst%get_n_demand()
          call resolve_ndemand('demand_based', NMIN / TCNUPT, &
@@ -284,8 +283,6 @@ do cycyear = 1, nyears
       ! Soil 2
       call O2fluxes       (O2,PERMgas,ROOTD,RplantAer,     O2IN,O2OUT)
       call N_fert         (year, doy, CALENDAR_FERT, Nfert_min, Nfert_org, Cfert, fertflag)
-      !print *, CALENDAR_FERT(1:5, 5)
-      !print *, 'fertflag', fertflag, Cfert, Nfert_min, Nfert_org
       call N_dep          (year,doy,DAYS_NDEP,NDEPV,       Ndep)
       
       if (allocated(yasso_inst)) then
@@ -548,30 +545,41 @@ call dealloc_environment()
 
 contains
 
-  subroutine yasso_factory(inst, soilcn_model)
+  subroutine yasso_factory(inst, soilcn_model, state_init, yasso_params)
+    use yassocore, only : num_parameters
     class(base_yasso_t), allocatable :: inst
     integer, intent(in) :: soilcn_model
+    real, intent(in) :: state_init(:)
+    real, intent(in) :: yasso_params(:)
+    
+    real :: param(num_parameters)
 
-    character(len=256) :: filename_inicn
-
-    print *, 'here', soilcn_model, soilcn_nmodel2cls
+    if (size(yasso_params) < num_parameters) then
+       print *, 'yasso_params too small'
+       stop
+    end if
+        
     select case(soilcn_model)
     case(soilcn_nmodel1)
        allocate(nmodel1::inst)
-       filename_inicn = 'initialisation/yasso_init'
     case(soilcn_nmodel2cls)
        allocate(nmodel2cls::inst)
-       filename_inicn = 'initialisation/yasso_init.nmodel2cls'
     case default
-       print *, 'Badsoilcn_model!!', soilcn_model
+       print *, 'Bad soilcn_model', soilcn_model
        stop
     end select
-    call inst%init_from_files('parameters/yasso_parameters', filename_inicn)
+
+    call inst%init(yasso_params)
+    call inst%set_state(state_init)
+
+    !call inst%init_from_files('parameters/yasso_parameters', filename_inicn)
        
   end subroutine yasso_factory
   
   subroutine eval_otherfluxes(ROOTD, RWA, WFPS, WAL, GCR, yasso_inst, nmin, &
        soilc_runoff, norg_runoff, nmin_leach, n_emis_no, n_emis_n2o, nfixation)
+    ! Evaluate leaching and gaseous N fluxes when using Yasso for soil
+    !
     use parameters_site, only : KNFIX, RRUNBULK, KNEMIT, RFN2O, WFPS50N2O, RNLEACH
     use soil, only : DRAIN, RUNOFF
     real, intent(in) :: ROOTD, RWA, WFPS, WAL, GCR
@@ -607,5 +615,6 @@ contains
     n_emis_n2o    = Nemission *     fN2O
     n_emis_no     = Nemission * (1.-fN2O)
   end subroutine eval_otherfluxes
+  
 end subroutine BASGRA
 
