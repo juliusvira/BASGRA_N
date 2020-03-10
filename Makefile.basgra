@@ -1,0 +1,16 @@
+srcfiles=$(shell grep -i -l module model/*.f90)
+objfiles=$(subst .f90,.mod.o,$(srcfiles))
+
+include BASGRA.rules.full
+
+$(OBJDIR)BASGRA.o : $(SRCDIR)/BASGRA.f90 $(objfiles)
+	echo $^
+	$(F90C) $(PREPROCESS) -c  $< -o $@
+
+BASGRA.DLL : $(objfiles) $(OBJDIR)BASGRA.o
+	echo $^
+	$(F90C) -shared -o $@ $^
+
+basgrafort.so : $(objfiles)
+	f2py --f90flags="-fdefault-real-8 $(PREPROCESS)" --f2cmap $(SRCDIR)/f2py_map -m basgrafort -c $(SRCDIR)/BASGRA.f90 $(objfiles)
+
