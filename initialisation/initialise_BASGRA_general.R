@@ -1,11 +1,11 @@
 ### initialise_BASGRA_general.R ##
 
 ################################################################################
-calendar_fert     <- matrix( 0, nrow=100, ncol=3 )
+calendar_fert     <- matrix( 0, nrow=100, ncol=5 )
 calendar_Ndep     <- matrix( 0, nrow=100, ncol=3 )
 calendar_Ndep[1,] <- c(1900,  1,0)
 calendar_Ndep[2,] <- c(2100,366,0)
-days_harvest      <- matrix( as.integer(-1), nrow=100, ncol=2 )
+days_harvest      <- matrix( as.integer(-1), nrow=100, ncol=3 )
 
 ################################################################################
 ### 1. MODEL LIBRARY FILE & FUNCTION FOR RUNNING THE MODEL
@@ -98,7 +98,8 @@ outputNames <- c(
   "rNLITT"     , "rNSOMF"           ,                                    # 98:99
   "DAYL"       , "GTOT"             , "DNRT"        , "NORG_RUNOFF",     # 100:103
   "GRT"        , "NPP"              , "NEE"         , "RESMOB",          # 104:107
-  "FLITTC_LEAF", "FLITTC_ROOT"      , "FLITTN_LEAF" , "FLITTN_ROOT"      # 108:111
+  "FLITTC_LEAF", "FLITTC_ROOT"      , "FLITTN_LEAF" , "FLITTN_ROOT",     # 108:111
+  "VPI"                                                                  # 112
 )
   
 outputUnits <- c(
@@ -128,8 +129,9 @@ outputUnits <- c(
   "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 98:99
   "(d d-1)"      , "(g C m-2 d-1)", "(g N m-2 d-1)" , "(g N m-2 d-1)",             # 100:103
   "(g C m-2 d-1)", "(g C m-2 d-1)", "(g C m-2 d-1)" , "(g C m-2 d-1)",             # 104:107
-  "(g C m-2 d-1)", "(g C m-2 d-1)", "(g N m-2 d-1)" , "(g N m-2 d-1)"              # 108:111
-)
+  "(g C m-2 d-1)", "(g C m-2 d-1)", "(g N m-2 d-1)" , "(g N m-2 d-1)",             # 108:111
+  "(kPa)"
+  )
   
 NOUT <- as.integer( length(outputNames) )
    
