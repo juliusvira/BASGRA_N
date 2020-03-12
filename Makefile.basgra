@@ -2,6 +2,7 @@ srcfiles=$(shell grep -i -l module model/*.f90)
 objfiles=$(subst .f90,.mod.o,$(srcfiles))
 
 include BASGRA.rules.full
+yassolib=yasso/fortran/libyasso.a
 
 $(OBJDIR)BASGRA.o : $(SRCDIR)/BASGRA.f90 $(objfiles)
 	echo $^
@@ -11,6 +12,6 @@ BASGRA.DLL : $(objfiles) $(OBJDIR)BASGRA.o
 	echo $^
 	$(F90C) -shared -o $@ $^
 
-basgrafort.so : $(objfiles)
-	f2py --f90flags="-fdefault-real-8 $(PREPROCESS) $(incl)" --f2cmap $(SRCDIR)/f2py_map -m basgrafort -c $(SRCDIR)/BASGRA.f90 $(objfiles)
+basgrafort.so : $(objfiles) $(yassolib)
+	f2py --f90flags="-fdefault-real-8 $(PREPROCESS) $(incl)" --f2cmap $(SRCDIR)/f2py_map -m basgrafort -c $(SRCDIR)/BASGRA.f90 $^
 
