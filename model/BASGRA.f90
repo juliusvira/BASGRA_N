@@ -51,7 +51,10 @@ logical, intent(in)                   :: if_weathergen             ! "weather ha
 ! number of days for each cycled year (365 for full years when nyears > 1, > 365 when running several real years):
 integer, intent(in)                   :: NDAYS                     
 integer, intent(in)                   :: nyears                    ! number of years to cycle over, set to 1 when running "real" calendar years. 
-integer, intent(in)                   :: size_weather, size_calendar, NWEATHER, size_yasso_init, size_yasso_params
+integer, intent(in)                   :: size_weather              ! number of weather records
+integer, intent(in)                   :: size_calendar             ! number of fert/ndep/harvest calendar records
+integer, intent(in)                   :: NWEATHER                  ! number of weather parameters (in each record)
+integer, intent(in)                   :: size_yasso_init, size_yasso_params
 integer, intent(in)                   :: NOUT                      ! number of outputs
 real, intent(out)                     :: y(NDAYS*NYEARS,NOUT)      ! output
 
@@ -271,8 +274,8 @@ do cycyear = 1, nyears
          else
             call get_daily_clim(year, doy, weather_yasso, yasso_clim, wx_found)
             if (.not. wx_found) then
-               print *, 'Failed to find weather for yasso'
-               stop
+               print *, 'Failed to find weather for yasso: year, doy', year, doy
+               return
             end if
          end if
          call yasso_inst%decomp_demand(yasso_clim, delt)
