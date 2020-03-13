@@ -8,7 +8,7 @@ $(OBJDIR)BASGRA.o : $(SRCDIR)/BASGRA.f90 $(objfiles)
 	echo $^
 	$(F90C) $(PREPROCESS) -c  $< -o $@
 
-BASGRA.DLL : $(objfiles) $(OBJDIR)BASGRA.o
+BASGRA.DLL : $(objfiles) $(OBJDIR)BASGRA.o $(yassolib)
 	echo $^
 	$(F90C) -shared -o $@ $^
 
