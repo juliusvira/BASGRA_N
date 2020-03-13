@@ -45,7 +45,6 @@ Subroutine Harvest(CLV, CRES, CST, year, doy, DAYS_HARVEST, LAI, PHEN, TILG1, TI
   else
     HARVFR = 1.0 - CLAI/LAI
  end if
- print *, 'harvfr', harvfr, clai, lai, fractv
   HARVLA    = (HARV   * LAI * HARVFR) / DELT
   HARVLV    = (HARV   * CLV * HARVFR) / DELT
   HARVPH    = (HARV   * PHEN        ) / DELT
@@ -193,7 +192,6 @@ Subroutine growth_demand(LAI,NSH,NMIN,CLV,CRES,CST,PARINT,TILG1,TILG2,TILV,TRANR
   PHOT     = PARINT * TRANRF * 12. * LUEMXQ * NOHARV
 
   RESMOB   = (CRES * NOHARV / TCRES) * max(0.,min( 1.,DAVTMP/5. ))
-  print *, 'in phot', PARINT, TRANRF, LUEMXQ, NOHARV, 'res', RESMOB, CRES
 
   SOURCE   = RESMOB + PHOT
   RESPHARD = min(SOURCE,RESPHARDSI)
@@ -304,7 +302,6 @@ Subroutine Senescence(CLV,CRT,CSTUB,LAI,LT50,PERMgas,TANAER,TILV,Tsurf, &
   RDRT   = max(RDRTMIN, RDRTEM * Tsurf)
   TV2    = NOHARV * max(RDRS,RDRT,RDRFROST,RDRTOX)
   TV2TIL = NOHARV * max(RDRS,     RDRFROST,RDRTOX)
-  print *, 'tv2til', tv2til, RDRS, RDRFROST,RDRTOX
   DLAI   = LAI    * TV2
   DLV    = CLV    * TV2
   DSTUB  = CSTUB  * RDRSTUB
@@ -369,7 +366,6 @@ Subroutine Foliage2(DAYL,GLV,LAI,TILV,TILG1,TRANRF,Tsurf,VERN, GLAI,GTILV,TILVG1
   if (FSPOT < 0.)    FSPOT = 0.
   ! RGRTV = Relative rate of tillering
   RGRTV   = max( 0., FSPOT * RESNOR * RLEAF )
-  print *, 'RGRTV', rgrtv
   GTILV   = max(0.0, TILV)  * RGRTV
   ! TGE = "temperature effect on initiaion of elongation in tillers"
   TGE     = max( 0., 1 - (abs(DAVTMP - TOPTGE))/(TOPTGE-TBASE))
