@@ -27,13 +27,13 @@ year_start     <- as.integer(2018)
 doy_start      <- as.integer(1)
 years_cycle <- as.integer(1)
 num_cycles = as.integer(1)
-parcol       <- 1 # for Qvidja
+parcol       <- 3 # for Qvidja
 soilcn_option <- as.integer(2)
 if_weathergen <- FALSE
 
 NDAYS          <- as.integer(600)
 file_weather   <- 'weather/qvidja_2018_2019_extend.txt'
-file_params    <- 'parameters/parameters_qvidja_v2.csv'
+file_params    <- 'parameters/parameters_qvidja_v3.csv'
 file_yasso_param <- 'yasso/param/yasso_param_climdrv_nitr'
 file_yasso_init <- 'initialisation/qvidja_yasso_0kgN_i3.NModel1'
 file_yasso_weather <- 'weather/qvidja_2017_2019.yasso30d.txt'
