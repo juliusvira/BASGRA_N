@@ -107,7 +107,7 @@ class(base_yasso_t), allocatable :: yasso_inst
 
 real :: ndemand_plant(1)             ! The plant N demand evaluated from the potential photolysis
 real :: nalloc_plant(1)              ! The N allocated for plant depending on N availability and soil demand.
-! The soil N demand/alloc may have several components (= several processes that release/fix N).
+! The soil N demand/alloc may have several components (= several processes that release/require N).
 real, allocatable :: ndemand_soil(:) ! The N demand of litter decomposition. Negative means net mineralization. Alway negative for the Basgra C/N.
 real, allocatable :: nalloc_soil(:)  ! The N allocated for litter decomposition (if required).
 
