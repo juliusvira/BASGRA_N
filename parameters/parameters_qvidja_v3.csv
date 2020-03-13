@@ -1,0 +1,114 @@
+PARAMETER,LONG_NAME,UNIT,Qvidja,Searheim TIMCOM
+LOG10CLVI,log(10) of leaf C,gC m-2,1.239,1.239
+LOG10CRESI,log(10) of reserve C,gC m-2,0.3749,0.3749
+LOG10CRTI,log(10) of root C,gC m-2,0.2137,0.2137
+CSTI,stem C,gC m-2,0,0
+LOG10LAII,LAI,,-0.3189,-0.3189
+PHENI,Phenological stage,,0.01,0.01
+TILTOTI,Tiller density,m-2,2388,2388
+FRTILGI,Elongating tiller fraction,,0.3993,0.3993
+LT50I,Temperature that kill 50% of plants,degC,-4.7894,-4.7894
+CLAIV,Maximum LAI remaining after harvest,,0.5692,0.5692
+COCRESMX,Maximum concentration of reserves in aboveground biomass,,0.1451,0.1451
+CSTAVM,Maximum size of elongating tillers,gC tiller-1,1.112,1.112
+DAYLB,Day length below which phenological stage is reset to zero,day day-1,0.5329,0.5329
+DAYLP,Day length below which phenological development slows down,day day-1,0.7104,0.7104
+DLMXGE,Day length below which DAYLGE becomes less than 1,day day-1,0.9849,0.9849
+FSLAMIN,Minimum SLA of new leaves as a fraction of maximum possible SLA,,0.8619,0.8619
+FSMAX,Maximum ratio of tiler and leaf appearance based on sward geometry,,0.693,0.693
+HAGERE,Fraction of reserves in elongating tillers that is harvested,,0.8342,0.8342
+K,PAR extinction coefficient,m-2 m-2 leaf,0.4669,0.4669
+LAICR,LAI above which shading induces leaf senescence,,3.913,3.913
+LAIEFT,Decrease in tillering with leaf area index,,0.1219,0.1219
+LAITIL,Maximum ratio of tiller and leaf appearance at low leaf area index,,0.9663,0.9663
+LFWIDG,Leaf width on elongating tillers,m,0.01042,0.01042
+LFWIDV,Leaf width on non-elongating tillers,m,0.007001,0.007001
+NELLVM,Number of elongating leaves per non-elongating tiller,tiller-1,2.172,2.172
+PHENCR,Phenological stage above which elongation (….) decreases,,0.4989,0.4989
+PHY,Phyllochron,degC day,45.09,45.09
+RDRSCO,Death rate (…) due to shading…,d-1,0.09563,0.09563
+RDRSMX,Maximum death rate (…) due to shading,d-1,0.06343,0.06343
+RDRTEM,Proportionality of leaf senescence with temperature,d-1 degC-1,0.0009367,0.0009367
+RGENMX,Maximum death rate of tillers becoming elongating tillers,d-1,0.01719,0.01719
+ROOTDM,Initial and maximum rooting depth,m,1.182,1.182
+RRDMAX,Maximum root depth growth rate,m d-1,0.0155,0.0155
+RUBISC,Rubisco content of upper leaves,g m-2 leaf,4.553,4.553
+SHAPE,Area of leaf relative to a rectangle of same length and width,,0.8442,0.8442
+SIMAX1T,Sink strength of small elongating tillers,gC tiller-1 d-1,0.005471,0.005471
+SLAMAX,Maximum SLA of new leaves,m2 g leafC-1,0.0781,0.0781
+TBASE,Minimum effective temperature for leaf elongationg,degC,2.766,2.766
+TCRES,Time constant of mobilisation of reserves,d-1,2.639,2.639
+TOPTGE,Optimum temperature for vegetative tillers becoming genrative,degC,21.37,21.37
+TRANCO,Transpiration coefficient,mm d-1,6.435,6.435
+YG,Growth yield,,0.8759,0.8759
+LAT,Latitude,deg N,58.46,58.46
+WCI,Initial volumetric soil water ,m3 m-3,0.3,0.3
+FWCAD,Volumetric soil water air dry relative to saturation,m3 m-3,0.07,0.011363636
+FWCWP,Volumetric soil water wilting point relative to saturation,,0.37,0.07741
+FWCFC,Volumetric soil water field capacity relative to saturation,,0.77,0.6498
+FWCWET,Volumetric soil water above which transpiration is reduced relative to saturation,,1,1
+WCST,Volumetric soil water at saturation,,0.43,0.44
+WpoolMax,Maximum pool water (liquid + ice),mm,50,50
+Dparam,Constant in the calculation of the dehardening rate,degC-1 d-1,0.001895,0.001895
+FGAS,Fraction of soil volume that is gaseous (???),,0.4175,0.4175
+FO2MX,Maximum oxygen fraction of soil gas,,0.2008,0.2008
+gamma,Temperature extinction coefficient of snow,m-1,68.86,68.86
+Hparam,Hardening parameter,degC-1 day-1,0.008262,0.008262
+KRDRANAER,Maximum death rate due to aerobic conditions,d-1,0.6396,0.6396
+KRESPHARD,Carbohydrate requirement of hardening,gC gC-1 degC-1,0.02244,0.02244
+KRSR3H,Constant in the logistic curve for frost survival,degC-1,0.9618,0.9618
+KRTOTAER,Ratio of total to aerobic respiration,,1.775,1.775
+KSNOW,Light extinction coefficient of snow,mm-1,0.03871,0.03871
+LAMBDAsoil,???,J m-1 degC-1 d-1,199000,199000
+LDT50A,Intercept of LD50 to LT50,d,1.555,1.555
+LDT50B,Slope of LD50 to LT50,d degC-1,-2.172,-2.172
+LT50MN,Minimum LT50,degC,-25.47,-25.47
+LT50MX,Maximum LT50,degC,-4.544,-4.544
+RATEDMX,Maximum dehardening rate,degC d-1,1.81,1.81
+reHardRedDay,Start of the period of decrease in rehardening capability,d,133.7,133.7
+RHOnewSnow,Duration of period over which rehardening capability disappears,d,85.86,85.86
+RHOpack,Relative packing rate of snow,d-1,0.02187,0.02187
+SWret,Liquid water storage capacity of snow,mm mm-1 d-1,0.08415,0.08415
+SWrf,Maximum refreezing rate per degree below TmeltFreeze,mm d-1 degC-1,0.0104,0.0104
+THARDMX,Maximum surface temperature at which hardening is possible,degC,14.82,14.82
+TmeltFreeze,Temperature above which snow melts,degC,0,0
+TrainSnow,Tmperature below which precipitation is snow,degC,0.01062,0.01062
+TsurfDiff,Constant in the calculation of the dehardening rate,degC,3.353,3.353
+KLUETILG,LUE increase with increasing fraction elongating tillers,,0.5787,0.5787
+FRTILGG1I,Initial fraction of generative tillers that is still in stage 1,,0.5648,0.5648
+DAYLG1G2,Minimum day length above which generative tillers can start elongating,d d-1,0.6302,0.6302
+RGRTG1G2,Rate of TILG1 becoming TILG2,d-1,0.8237,0.8237
+RDRTMIN,Minimum death rate of foliage,d-1,0.01209,0.01209
+TVERN,Vernalisation threshold,degC,20,20
+CLITT0,Initial CLITT,gC m-2,300,300
+CSOM0,Initial CSOM,gC m-2,10000,10000
+CNLITT0,Initial C:N of CLITT,,50,50
+CNSOMF0,Initial C:N of SOMF,,25,25
+CNSOMS0,Initial C:N of SOMS,,25,25
+FCSOMF0,Initial fraction of SOC that is fast,,0.5,0.5
+FLITTSOMF,Fraction of decomposed litter becoming SOMF,,0.6,0.6
+FSOMFSOMS,Fraction of decopmosed fast SOM,,0.03,0.03
+RNLEACH,N leaching coefficient,,0.5,0.5
+KNEMIT,Fraction of mineral N emitted in wet soil,d-1,0.0005,0.0005
+NMIN0,Initial mineral N,gN m-2,1,1
+TCLITT,Time constant of litter decomposition,d,365,365
+TCSOMF,Time constant of SOMF decomposition,,1460,1460
+TCSOMS,Time constant of SOMS decomposition,,73000,73000
+TMAXF,Optimal temperature for decomposition,degC,50,50
+TSIGMAF,Resilience of decomposition to temperature change,degC,20,20
+RFN2O,Sensitivity of N-emission partitioning to soil wetness,,8.5,8.5
+WFPS50N2O,Water filled pore space at which N emission is half N2O,,0.7,0.7
+NCSHMAX,Maximum N:C of shoot,,0.06934,0.06934
+NCR,N:C of roots,,0.02195,0.02195
+RDRROOT,Death rate of roots,d-1,0.02,0.02
+RDRSTUB,Death rate of stubble,d-1,0.2086,0.2086
+NFERTMULT,Fertilization rate multiplier,,1,1
+FNCGSHMIN,Minimum N:C ratio of growing tissue,,0.327,0.327
+TCNSHMOB,Time constant of shoot N remobilization,d,7.643,7.643
+TCNUPT,Time constant of N uptake,d,27.6,27.6
+F_DIGEST_WALL_FMIN,Minimum digestibility of cell walls as a fraction of max,,0.7,0.7
+F_DIGEST_WALL_MAX,Maximum digestibility of cell walls,,0.9,0.9
+F_WALL_LV_FMIN,Minimum leaf DM that is cell wall as a fraction of max,,0.7,0.7
+F_WALL_LV_MAX,Fraction of leaf DM that is cell wall,,0.6,0.6
+F_WALL_ST_FMIN,"Minmum stem DM that is cell wall, fraction of max",,0.8,0.8
+F_WALL_ST_MAX,Fraction of stem DM that is cell wall,,0.75,0.75
